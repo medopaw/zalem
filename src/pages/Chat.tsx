@@ -12,7 +12,7 @@ function Chat() {
   const { user } = useAuth();
   const [isThreadListCollapsed, setIsThreadListCollapsed] = useState(false);
   const [newMessage, setNewMessage] = useState('');
-  const [userNickname, setUserNickname] = useState<string | null>(null);
+  // const [userNickname, setUserNickname] = useState<string | null>(null);
   const [chatServiceState, setChatServiceState] = useState<{
     initialized: boolean;
     error: string | null;
@@ -40,7 +40,7 @@ function Chat() {
     sendMessage,
     loadMessages
   } = useMessages(user?.id);
-  const [hasWelcomeMessageRef] = useState({ current: false });
+  // const [hasWelcomeMessageRef] = useState({ current: false });
 
   useEffect(() => {
     const initialize = async () => {
@@ -62,13 +62,20 @@ function Chat() {
   useEffect(() => {
     if (currentThreadId && !threadsLoading && chatServiceState.initialized) {
       loadMessages(currentThreadId)
+      .then(() => {
+        // Set focus to input after messages are loaded
+        setShouldFocus(true);
+      })
       .catch(error => {
         console.error('Failed to load messages:', error);
       });
     }
   }, [currentThreadId, threadsLoading, chatServiceState.initialized, loadMessages]);
 
-  const handleCreateThread = () => createThread();
+  const handleCreateThread = async () => {
+    await createThread();
+    setShouldFocus(true);
+  };
   const handleSelectThread = async (threadId: string) => {
     await selectThread(threadId);
     await loadMessages(threadId);
@@ -83,6 +90,8 @@ function Chat() {
     }
   }, [shouldFocus]);
 
+  // 未使用的函数，保留注释以供参考
+  /*
   const checkUserNickname = async () => {
     if (!user) return;
 
@@ -107,7 +116,7 @@ function Chat() {
         .single();
 
       if (error) throw error;
-      setUserNickname(data?.nickname);
+      // setUserNickname(data?.nickname);
 
       if (!hasWelcomeMessageRef.current) {
         const welcomeMessage = data?.nickname
@@ -128,7 +137,7 @@ function Chat() {
           .single();
 
         if (!messageError && messageData) {
-          setMessages(prev => [...prev, messageData]);
+          // setMessages(prev => [...prev, messageData]);
           hasWelcomeMessageRef.current = true;
         }
       }
@@ -136,6 +145,7 @@ function Chat() {
       console.error('Error checking nickname:', error);
     }
   };
+  */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
