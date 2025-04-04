@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { ChatService, initializeChatService, getChatService } from '../chatService';
+import { ChatService, initializeChatService, getChatService } from '../ChatService';
 import type { ChatHistoryMessage } from '../../types/chat';
 
 // Mock window for test environment

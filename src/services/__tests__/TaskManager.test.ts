@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { supabase } from '../../lib/supabase';
 import { MessageParser } from '../../services/MessageParser';
-import { getChatService } from '../../services/chatService';
+import { getChatService } from '../ChatService';
 
 // Mock Supabase
 vi.mock('../../lib/supabase', () => ({

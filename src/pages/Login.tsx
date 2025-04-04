@@ -10,7 +10,7 @@ function Login() {
   const [error, setError] = useState<string | null>(null);
 
   if (user) {
-    return <Navigate to="/chat" />;
+    return <Navigate to="/home" />;
   }
 
   const validatePassword = (password: string): string | null => {

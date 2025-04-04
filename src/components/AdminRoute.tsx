@@ -10,7 +10,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user || !isAdmin) {
-    return <Navigate to="/chat" />;
+    return <Navigate to="/login" />;
   }
 
   return <>{children}</>;

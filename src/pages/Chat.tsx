@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Send, Loader2 } from 'lucide-react';
-import { initializeChatService } from '../services/chatService';
+import { initializeChatService } from '../services/ChatService';
 import ThreadList from '../components/ThreadList';
 import MessageList from '../components/MessageList';
 import { useThreads } from '../hooks/useThreads';

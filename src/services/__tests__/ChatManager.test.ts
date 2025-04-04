@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { ChatManager } from '../ChatManager';
 import { supabase } from '../../lib/supabase';
-import { getChatService } from '../chatService';
+import { getChatService } from '../ChatService';
 import { DEFAULT_THREAD_TITLE } from '../../constants/chat';
 
 // Mock Supabase

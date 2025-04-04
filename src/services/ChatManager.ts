@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { ChatMessage, ChatHistoryMessage } from '../types/chat';
 import { MessageParser } from './MessageParser';
-import { getChatService, SYSTEM_PROMPT } from './chatService';
+import { getChatService, SYSTEM_PROMPT } from './ChatService';
 import type { MessageContext } from '../types/messages';
 import type { ThreadUpdatedEventDetail } from '../types/events';
 import { DEFAULT_THREAD_TITLE } from '../constants/chat';
