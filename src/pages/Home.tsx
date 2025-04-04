@@ -6,11 +6,11 @@ import DraggableResizer from '../components/DraggableResizer';
 const MIN_LEFT_WIDTH = 565;
 const MIN_RIGHT_WIDTH = 300;
 
-function Dashboard() {
+function Home() {
   const [leftWidth, setLeftWidth] = useState(() => window.innerWidth - 400);
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex gap-1">
+    <div className="h-full overflow-auto flex gap-1">
       <div style={{ width: leftWidth, minWidth: MIN_LEFT_WIDTH }}>
         <Chat />
       </div>
@@ -26,4 +26,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+export default Home;

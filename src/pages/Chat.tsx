@@ -21,9 +21,9 @@ function Chat() {
     error: null
   });
   const [shouldFocus, setShouldFocus] = useState(false);
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
+
   const {
     threads,
     currentThreadId,
@@ -32,7 +32,7 @@ function Chat() {
     createThread,
     selectThread
   } = useThreads();
-  
+
   const {
     messages,
     loading,
@@ -85,11 +85,11 @@ function Chat() {
 
   const checkUserNickname = async () => {
     if (!user) return;
-    
+
     if (!currentThreadId) {
       return;
     }
-    
+
     // Load existing messages
     await loadMessages(currentThreadId);
 
@@ -98,7 +98,7 @@ function Chat() {
       hasWelcomeMessageRef.current = true;
       return;
     }
-    
+
     try {
       const { data, error } = await supabase
         .from('users')
@@ -161,20 +161,20 @@ function Chat() {
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    
+
     // Store current scroll position
     const scrollPos = textarea.scrollTop;
-    
+
     // Reset height to auto to get the correct scrollHeight
     textarea.style.height = 'auto';
-    
+
     // Calculate the new height
     const baseHeight = 42; // Initial height (matches current input height)
     const maxHeight = baseHeight * 3;
     const newHeight = Math.min(textarea.scrollHeight, maxHeight);
-    
+
     textarea.style.height = `${newHeight}px`;
-    
+
     // Restore scroll position
     textarea.scrollTop = scrollPos;
   };
@@ -185,7 +185,7 @@ function Chat() {
   };
 
   return (
-    <div className="h-full flex relative">
+    <div className="h-full flex relative overflow-hidden">
       <ThreadList
         threads={threads}
         currentThreadId={currentThreadId}
@@ -194,7 +194,7 @@ function Chat() {
         onSelectThread={handleSelectThread}
         onToggleCollapse={() => setIsThreadListCollapsed(!isThreadListCollapsed)}
       />
-      
+
       <div className="flex-1 bg-white shadow-md h-full rounded-r-lg">
         <div className="flex flex-col h-full rounded-r-lg overflow-hidden">
           {chatServiceState.error && (
