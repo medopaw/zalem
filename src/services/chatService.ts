@@ -1,4 +1,4 @@
-import { ChatHistoryMessage, ChatResponse, ChatServiceConfig } from '../types/chat';
+import { ChatHistoryMessage, ChatResponse, ChatServiceConfig, LLMMessage } from '../types/chat';
 import type { FunctionDefinition, FunctionCall } from '../types/chat';
 import OpenAI from 'openai';
 
@@ -255,11 +255,6 @@ const AVAILABLE_FUNCTIONS = [
   }
 ];
 
-interface OpenAIMessage extends ChatHistoryMessage {
-  function_call?: FunctionCall;
-  name?: string;
-}
-
 /**
  * Service for handling chat interactions with the DeepSeek API
  */
@@ -308,6 +303,9 @@ export class ChatService {
         tool_choice: 'auto'
       });
 
+      // Log response from llm
+      console.log('LLM Response:', completion.choices);
+
       const message = completion.choices[0].message;
       return message;
 
@@ -316,8 +314,13 @@ export class ChatService {
         // throw new Error('Unable to connect to the chat service. Please check your internet connection and try again.');
       }
       // throw new Error(error instanceof Error ? error.message : 'Unknown error occurred');
-      alert(error);
       console.error(error);
+
+      // 返回一个默认的错误消息
+      return {
+        role: 'assistant',
+        content: '抱歉，我遇到了一些问题。请稍后再试。'
+      };
     }
   }
 }
