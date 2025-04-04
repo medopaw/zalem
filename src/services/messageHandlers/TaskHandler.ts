@@ -1,6 +1,7 @@
 import { BaseHandler } from './BaseHandler';
 import type { MessageContext, ChatMessage } from '../../types/messages';
-import { getWeekRange, getQuarterRange } from '../dateUtils'; 
+import type { LLMMessage } from '../../types/chat';
+import { getWeekRange, getQuarterRange } from '../dateUtils';
 
 /**
  * Maps between priority descriptions and enum values
@@ -52,8 +53,8 @@ export class TaskHandler extends BaseHandler {
       'updateTaskWorkload',
       'updateTaskSchedule'
     ];
-    
-    return message.tool_calls?.some(call => 
+
+    return message.tool_calls?.some(call =>
       TASK_FUNCTIONS.includes(call.function.name)
     ) || false;
   }
@@ -65,7 +66,7 @@ export class TaskHandler extends BaseHandler {
     if (message.content) {
       messages.push(await this.saveMessage(message.content, 'assistant', context));
     }
-    
+
     // Handle each tool call
     for (const call of message.tool_calls || []) {
       await this.handleToolCall(
@@ -75,6 +76,8 @@ export class TaskHandler extends BaseHandler {
         messages
       );
     }
+
+    return messages;
   }
 
   private async handleToolCall(
@@ -233,18 +236,18 @@ export class TaskHandler extends BaseHandler {
     messages: ChatMessage[]
   ): Promise<void> {
     const { task_id, ...updates } = params;
-    
+
     // Validate task_id
     if (!task_id) {
       throw new Error('任务ID不能为空');
     }
-    
+
     // Validate task_id format
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(task_id)) {
       throw new Error('无效的任务ID格式');
     }
-    
+
     console.log('Updating task:', { task_id, updates });
 
     // Map priority if provided
@@ -336,13 +339,13 @@ export class TaskHandler extends BaseHandler {
     if (!params.task_id) {
       throw new Error('任务ID不能为空');
     }
-    
+
     // Validate task_id format
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(params.task_id)) {
       throw new Error('无效的任务ID格式');
     }
-    
+
     const { data: assignee, error } = await context.supabase
       .from('task_assignees')
       .insert([{
@@ -365,13 +368,13 @@ export class TaskHandler extends BaseHandler {
     if (!params.task_id) {
       throw new Error('任务ID不能为空');
     }
-    
+
     // Validate task_id format
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(params.task_id)) {
       throw new Error('无效的任务ID格式');
     }
-    
+
     const weekStart = new Date(params.week_start);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
@@ -404,13 +407,13 @@ export class TaskHandler extends BaseHandler {
     if (!params.task_id) {
       throw new Error('任务ID不能为空');
     }
-    
+
     // Validate task_id format
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(params.task_id)) {
       throw new Error('无效的任务ID格式');
     }
-    
+
     const { error } = await context.supabase
       .from('task_schedule')
       .upsert([{

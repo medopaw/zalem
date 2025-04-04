@@ -1,20 +1,44 @@
 import { BaseHandler } from './BaseHandler';
-import type { MessageContext, ChatMessage, FunctionCallMessage } from '../../types/messages';
+import type { MessageContext, ChatMessage } from '../../types/messages';
 import type { ThreadUpdatedEventDetail } from '../../types/events';
+import type { LLMMessage } from '../../types/chat';
 
 export class ThreadHandler extends BaseHandler {
-  canHandle(message: string): boolean {
-    const parsed = this.parseJSON(message);
-    return parsed?.type === 'tool_call' && parsed.name === 'setThreadTitle';
+  canHandle(message: LLMMessage): boolean {
+    if (!message.tool_calls || message.tool_calls.length === 0) return false;
+
+    // Check if any tool call is for setThreadTitle
+    return message.tool_calls.some(tool =>
+      tool.function && tool.function.name === 'setThreadTitle'
+    );
   }
 
-  async handle(message: string, context: MessageContext): Promise<ChatMessage[]> {
-    const parsed = this.parseJSON(message) as FunctionCallMessage;
-    const { title } = parsed.parameters as { title: string };
+  async handle(message: LLMMessage, context: MessageContext): Promise<ChatMessage[]> {
+    // Find the setThreadTitle tool call
+    const threadTitleCall = message.tool_calls?.find(tool =>
+      tool.function && tool.function.name === 'setThreadTitle'
+    );
+
+    if (!threadTitleCall || !threadTitleCall.function) {
+      return [];
+    }
+
+    // Parse the arguments
+    let title: string;
+    try {
+      const args = JSON.parse(threadTitleCall.function.arguments);
+      title = args.title;
+      if (!title) throw new Error('Missing title parameter');
+    } catch (error) {
+      console.error('Error parsing thread title arguments:', error);
+      return [];
+    }
     const messages: ChatMessage[] = [];
 
     // Save the function call message
-    messages.push(await this.saveMessage(message, 'assistant', context));
+    if (message.content) {
+      messages.push(await this.saveMessage(message.content, 'assistant', context));
+    }
 
     // Update thread title
     const { data: updatedThread, error } = await context.supabase
@@ -37,8 +61,8 @@ export class ThreadHandler extends BaseHandler {
     console.log('Updated threads list:', threads);
 
     // Broadcast thread update event
-    const event = new CustomEvent<ThreadUpdatedEventDetail>('thread-updated', { 
-      detail: { threads } 
+    const event = new CustomEvent<ThreadUpdatedEventDetail>('thread-updated', {
+      detail: { threads }
     });
     console.log('Dispatching thread-updated event:', event);
     window.dispatchEvent(event);

@@ -1,11 +1,12 @@
 import type { MessageHandler, MessageContext, ChatMessage } from '../../types/messages';
+import type { LLMMessage } from '../../types/chat';
 
 /**
  * Base class for message handlers with common functionality
  */
 export abstract class BaseHandler implements MessageHandler {
-  abstract canHandle(message: string): boolean;
-  abstract handle(message: string, context: MessageContext): Promise<ChatMessage[]>;
+  abstract canHandle(message: LLMMessage): boolean;
+  abstract handle(message: LLMMessage, context: MessageContext): Promise<ChatMessage[]>;
 
   /**
    * Save a message to the database
@@ -36,4 +37,3 @@ export abstract class BaseHandler implements MessageHandler {
     return data;
   }
 }
-

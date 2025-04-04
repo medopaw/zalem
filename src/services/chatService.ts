@@ -273,11 +273,11 @@ export class ChatService {
     }
     this.apiKey = apiKey;
     const finalConfig = { ...DEFAULT_CONFIG, ...config };
-    
+
     this.openai = new OpenAI({
       apiKey: this.apiKey,
       baseURL: finalConfig.baseURL,
-      dangerouslyAllowBrowser: true 
+      dangerouslyAllowBrowser: true
     });
   }
 
@@ -310,7 +310,7 @@ export class ChatService {
 
       const message = completion.choices[0].message;
       return message;
-      
+
     } catch (error) {
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         // throw new Error('Unable to connect to the chat service. Please check your internet connection and try again.');
@@ -331,10 +331,10 @@ declare global {
 
 // Create storage that works in both browser and test environments
 const globalStorage = {
-  instance: null as ChatService | null
+  chatServiceInstance: null as ChatService | null
 };
 
-function getStorage() {
+function getStorage(): Window | typeof globalStorage {
   if (typeof window !== 'undefined') {
     return window;
   }
