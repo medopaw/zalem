@@ -64,14 +64,29 @@ export class ChatManager {
         return { messages: [], error: `Failed to load messages.\nError: ${error}` };
       }
 
-      // If this is a new thread (created within last 5 seconds) and has no messages
-      const isNewThread = thread && 
-        new Date().getTime() - new Date(thread.created_at).getTime() < 5000 &&
-        (!data || data.length === 0);
+      // 如果没有消息，则创建欢迎消息
+      const hasNoMessages = !data || data.length === 0;
 
-      if (isNewThread) {
+      // 只在调试模式下输出日志
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Thread info:', {
+          id: this.threadId,
+          created_at: thread?.created_at,
+          hasNoMessages,
+          messageCount: data?.length || 0
+        });
+      }
+
+      if (hasNoMessages) {
+        console.log('No messages found, creating welcome message');
         const welcomeMessage = await this.createWelcomeMessage();
-        this.messages = welcomeMessage ? [welcomeMessage] : [];
+        if (welcomeMessage) {
+          console.log('Welcome message created:', welcomeMessage);
+          this.messages = [welcomeMessage];
+        } else {
+          console.log('Failed to create welcome message');
+          this.messages = [];
+        }
         return { messages: this.messages, error: null };
       }
 
@@ -97,7 +112,7 @@ export class ChatManager {
       if (error) {
         return 'Failed to connect to the database';
       }
-      
+
       this.initialized = true;
       return null;
     } catch (error) {
@@ -149,7 +164,7 @@ export class ChatManager {
         assistantMessage,
         {
           ...context,
-          saveMessage: (content: string, role: 'user' | 'assistant') => 
+          saveMessage: (content: string, role: 'user' | 'assistant') =>
             this.saveMessage(content, role)
         }
       );
@@ -198,17 +213,29 @@ export class ChatManager {
 
   private async createWelcomeMessage(): Promise<ChatMessage | null> {
     try {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('nickname')
-        .eq('id', this.userId)
+      // 直接创建欢迎消息，不查询用户昵称
+      const welcomeMessage = "欢迎来到新对话！我能为您提供什么帮助？";
+      console.log('Creating welcome message for thread:', this.threadId);
+
+      // 直接向数据库插入消息，不经过其他逻辑
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .insert([{
+          content: welcomeMessage,
+          role: 'assistant',
+          user_id: this.userId,
+          thread_id: this.threadId
+        }])
+        .select()
         .single();
 
-      const welcomeMessage = userData?.nickname
-        ? `欢迎回来，${userData.nickname}！您在忙什么呢？`
-        : "欢迎！我注意到您还没有设置昵称。您希望我怎么称呼您？";
+      if (error) {
+        console.error('Error saving welcome message:', error);
+        return null;
+      }
 
-      return await this.saveMessage(welcomeMessage, 'assistant');
+      console.log('Welcome message created successfully:', data);
+      return data;
     } catch (error) {
       console.error('Error creating welcome message:', error);
       return null;
@@ -261,7 +288,7 @@ export class ChatManager {
       const threadId = this.pendingThreadId || this.threadId;
 
       const { data: threads } = await supabase
-        .from('chat_threads') 
+        .from('chat_threads')
         .select('id, title, updated_at')
         .order('updated_at', { ascending: false })
         .throwOnError();

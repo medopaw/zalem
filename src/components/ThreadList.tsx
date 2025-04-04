@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MessageSquare, Plus, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -13,6 +13,7 @@ interface ThreadListProps {
   threads: Thread[];
   currentThreadId: string | null;
   isCollapsed: boolean;
+  isLoading?: boolean;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
   onToggleCollapse: () => void;
@@ -22,6 +23,7 @@ function ThreadList({
   threads,
   currentThreadId,
   isCollapsed,
+  isLoading = false,
   onCreateThread,
   onSelectThread,
   onToggleCollapse,
@@ -49,10 +51,15 @@ function ThreadList({
       <div className="p-2 flex-1 overflow-hidden flex flex-col">
         <button
           onClick={onCreateThread}
-          className="w-full flex items-center justify-center gap-2 p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors mb-4"
+          disabled={isLoading}
+          className="w-full flex items-center justify-center gap-2 p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors mb-4 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Plus className="w-5 h-5" />
-          {!isCollapsed && <span>新对话</span>}
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Plus className="w-5 h-5" />
+          )}
+          {!isCollapsed && <span>{isLoading ? '创建中...' : '新对话'}</span>}
         </button>
 
         <div className="space-y-2 overflow-y-auto flex-1">

@@ -26,7 +26,7 @@ export function useThreads() {
     };
 
     window.addEventListener('thread-updated', handleThreadUpdate);
-    
+
     return () => {
       window.removeEventListener('thread-updated', handleThreadUpdate);
     };
@@ -44,15 +44,15 @@ export function useThreads() {
           // Get or create active thread
           const { data: newThreadId, error: threadError } = await supabase
             .rpc('get_or_create_active_thread');
-            
+
           if (threadError) throw threadError;
-          
+
           if (newThreadId) {
             setCurrentThreadId(newThreadId);
             setSearchParams({ thread: newThreadId });
           }
         }
-        
+
         await loadThreads();
       } catch (error) {
         console.error('Failed to initialize thread:', error);
@@ -90,9 +90,9 @@ export function useThreads() {
   const createThread = async () => {
     try {
       const { data, error } = await supabase.rpc('create_chat_thread');
-      
+
       if (error) throw error;
-      
+
       await loadThreads();
       return data;
     } catch (error) {
@@ -103,12 +103,28 @@ export function useThreads() {
   };
 
   const handleCreateThread = async () => {
-    const newThreadId = await createThread();
-    if (newThreadId) {
-      await loadThreads();
-      setCurrentThreadId(newThreadId);
-      setSearchParams({ thread: newThreadId });
-      return newThreadId;
+    try {
+      console.log('Creating thread via RPC...');
+      const newThreadId = await createThread();
+
+      if (newThreadId) {
+        console.log('Thread created successfully:', newThreadId);
+
+        // 加载线程列表
+        await loadThreads();
+
+        // 设置当前线程 ID
+        setCurrentThreadId(newThreadId);
+
+        // 更新 URL 参数
+        setSearchParams({ thread: newThreadId });
+
+        return newThreadId;
+      } else {
+        console.error('Failed to create thread: No thread ID returned');
+      }
+    } catch (error) {
+      console.error('Error in handleCreateThread:', error);
     }
     return null;
   };

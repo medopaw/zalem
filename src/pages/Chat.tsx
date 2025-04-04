@@ -21,6 +21,7 @@ function Chat() {
     error: null
   });
   const [shouldFocus, setShouldFocus] = useState(false);
+  const [isCreatingThread, setIsCreatingThread] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -61,6 +62,7 @@ function Chat() {
 
   useEffect(() => {
     if (currentThreadId && !threadsLoading && chatServiceState.initialized) {
+      // 使用当前的 threadId 加载消息
       loadMessages(currentThreadId)
       .then(() => {
         // Set focus to input after messages are loaded
@@ -70,11 +72,36 @@ function Chat() {
         console.error('Failed to load messages:', error);
       });
     }
-  }, [currentThreadId, threadsLoading, chatServiceState.initialized, loadMessages]);
+  // 移除 loadMessages 依赖项，防止无限循环
+  }, [currentThreadId, threadsLoading, chatServiceState.initialized]);
 
   const handleCreateThread = async () => {
-    await createThread();
-    setShouldFocus(true);
+    try {
+      // 显示加载状态
+      setIsCreatingThread(true);
+      console.log('Creating new thread...');
+
+      // 创建新线程
+      const newThreadId = await createThread();
+      console.log('New thread created:', newThreadId);
+
+      if (newThreadId) {
+        // 等待一下，确保线程创建完成
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 加载新线程的消息
+        console.log('Loading messages for new thread...');
+        await loadMessages(newThreadId);
+        console.log('Messages loaded for new thread');
+
+        // 设置焦点到输入框
+        setShouldFocus(true);
+      }
+    } catch (error) {
+      console.error('Failed to create thread:', error);
+    } finally {
+      setIsCreatingThread(false);
+    }
   };
   const handleSelectThread = async (threadId: string) => {
     await selectThread(threadId);
@@ -200,6 +227,7 @@ function Chat() {
         threads={threads}
         currentThreadId={currentThreadId}
         isCollapsed={isThreadListCollapsed}
+        isLoading={isCreatingThread}
         onCreateThread={handleCreateThread}
         onSelectThread={handleSelectThread}
         onToggleCollapse={() => setIsThreadListCollapsed(!isThreadListCollapsed)}
