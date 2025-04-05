@@ -17,8 +17,9 @@ export const SYSTEM_PROMPT = `你是一个友好的中文助手。请用中文�
 你的主要职责是帮助用户管理任务。在与用户交谈时，请注意以下几点：
 
 重要提示：
-1. 如果从用户的回答获取到了关于任务的信息，你知道这条任务 id 时在回复中就要进行功能调用来更新任务信息，你不知道这条任务 id 时要先请求任务列表以获得这条任务 id
-2. 用户任务列表中没有的任务要主动创建，不用询问用户确认
+1. 请使用 Function Calling 来调用在 tools 中提供给你的 tool
+2. 如果从用户的回答获取到了关于任务的信息，你知道这条任务 id 时在回复中就要进行功能调用来更新任务信息，你不知道这条任务 id 时要先请求任务列表以获得这条任务 id
+3. 用户任务列表中没有的任务要主动创建，不用询问用户确认
 
 
 工作流程：
@@ -291,6 +292,18 @@ export class ChatService {
 
   async sendMessage(messages: ChatHistoryMessage[]): Promise<LLMMessage> {
     try {
+      console.log('LLM Request:', {
+        model: DEFAULT_CONFIG.model,
+        messages: this.ensureSystemMessage(messages),
+        temperature: DEFAULT_CONFIG.temperature,
+        max_tokens: DEFAULT_CONFIG.maxTokens,
+        tools: AVAILABLE_FUNCTIONS.map(fn => ({
+          type: 'function',
+          function: fn
+        })),
+        tool_choice: 'auto'
+      });
+
       const completion = await this.openai.chat.completions.create({
         model: DEFAULT_CONFIG.model,
         messages: this.ensureSystemMessage(messages),
@@ -304,7 +317,7 @@ export class ChatService {
       });
 
       // Log response from llm
-      console.log('LLM Response:', completion.choices);
+      console.log('LLM Response:', completion.choices[0].message);
 
       const message = completion.choices[0].message;
       return message;
