@@ -292,28 +292,36 @@ export class ChatService {
 
   async sendMessage(messages: ChatHistoryMessage[]): Promise<LLMMessage> {
     try {
+      // 准备请求参数
+      const requestMessages = this.ensureSystemMessage(messages);
+      const tools = AVAILABLE_FUNCTIONS.map(fn => ({
+        type: 'function' as const,
+        function: fn
+      }));
+
+      // 打印请求内容以便调试
       console.log('LLM Request:', {
         model: DEFAULT_CONFIG.model,
-        messages: this.ensureSystemMessage(messages),
+        messages: requestMessages,
         temperature: DEFAULT_CONFIG.temperature,
         max_tokens: DEFAULT_CONFIG.maxTokens,
-        tools: AVAILABLE_FUNCTIONS.map(fn => ({
-          type: 'function',
-          function: fn
-        })),
-        tool_choice: 'auto'
+        tools: tools,
+        tool_choice: 'auto',
+        response_format: {
+          type: 'text'
+        }
       });
 
       const completion = await this.openai.chat.completions.create({
         model: DEFAULT_CONFIG.model,
-        messages: this.ensureSystemMessage(messages),
+        messages: requestMessages,
         temperature: DEFAULT_CONFIG.temperature,
         max_tokens: DEFAULT_CONFIG.maxTokens,
-        tools: AVAILABLE_FUNCTIONS.map(fn => ({
-          type: 'function',
-          function: fn
-        })),
-        tool_choice: 'auto'
+        tools: tools,
+        tool_choice: 'auto',
+        response_format: {
+          type: 'text'
+        }
       });
 
       // Log response from llm
