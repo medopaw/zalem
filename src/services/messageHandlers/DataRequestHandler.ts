@@ -7,7 +7,7 @@ import type { MessageContext, ChatMessage, LLMMessage } from '../../types/messag
 export class DataRequestHandler extends BaseHandler {
   canHandle(message: LLMMessage): boolean {
     return message.tool_calls?.some(call => 
-      call.function.name === 'requestData'
+      call.function.name === 'request_data'
     ) || false;
   }
 
@@ -19,13 +19,13 @@ export class DataRequestHandler extends BaseHandler {
       messages.push(await this.saveMessage(message.content, 'assistant', context));
     }
 
-    // Find the requestData tool call
+    // Find the request_data tool call
     const requestCall = message.tool_calls?.find(call => 
-      call.function.name === 'requestData'
+      call.function.name === 'request_data'
     );
 
     if (!requestCall) {
-      throw new Error('No requestData tool call found');
+      throw new Error('No request_data tool call found');
     }
 
     try {

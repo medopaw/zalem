@@ -48,7 +48,7 @@ export const SYSTEM_PROMPT = `你是一个友好的中文助手。请用中文�
 
 const AVAILABLE_FUNCTIONS = [
   {
-    name: 'requestData',
+    name: 'request_data',
     description: '请求用户数据',
     parameters: {
       type: 'object',
@@ -66,7 +66,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'createTask',
+    name: 'create_task',
     description: '创建新任务',
     parameters: {
       type: 'object',
@@ -106,7 +106,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'updateTask',
+    name: 'update_task',
     description: '更新任务信息',
     parameters: {
       type: 'object',
@@ -143,7 +143,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'addTaskAssignee',
+    name: 'add_task_assignee',
     description: '添加任务协作者',
     parameters: {
       type: 'object',
@@ -166,7 +166,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'updateTaskWorkload',
+    name: 'update_task_workload',
     description: '更新任务工作量',
     parameters: {
       type: 'object',
@@ -188,7 +188,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'updateTaskSchedule',
+    name: 'update_task_schedule',
     description: '更新任务计划',
     parameters: {
       type: 'object',
@@ -219,7 +219,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'setNickname',
+    name: 'set_nickname',
     description: '设置用户的昵称',
     parameters: {
       type: 'object',
@@ -233,7 +233,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'clearNickname',
+    name: 'clear_nickname',
     description: '清除用户的昵称',
     parameters: {
       type: 'object',
@@ -241,7 +241,7 @@ const AVAILABLE_FUNCTIONS = [
     }
   },
   {
-    name: 'setThreadTitle',
+    name: 'set_thread_title',
     description: '设置会话标题',
     parameters: {
       type: 'object',

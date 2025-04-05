@@ -7,7 +7,7 @@ import type { MessageContext, ChatMessage, LLMMessage } from '../../types/messag
 export class NicknameHandler extends BaseHandler {
   canHandle(message: LLMMessage): boolean {
     return message.tool_calls?.some(call => 
-      ['setNickname', 'clearNickname'].includes(call.function.name)
+      ['set_nickname', 'clear_nickname'].includes(call.function.name)
     ) || false;
   }
 
@@ -21,20 +21,20 @@ export class NicknameHandler extends BaseHandler {
 
     // Handle each nickname-related tool call
     for (const call of message.tool_calls || []) {
-      if (!['setNickname', 'clearNickname'].includes(call.function.name)) {
+      if (!['set_nickname', 'clear_nickname'].includes(call.function.name)) {
         continue;
       }
 
       try {
         switch (call.function.name) {
-          case 'setNickname':
+          case 'set_nickname':
             await this.handleSetNickname(
               JSON.parse(call.function.arguments),
               context,
               messages
             );
             break;
-          case 'clearNickname':
+          case 'clear_nickname':
             await this.handleClearNickname(context, messages);
             break;
         }

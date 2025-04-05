@@ -47,11 +47,11 @@ const riskMap = {
 export class TaskHandler extends BaseHandler {
   canHandle(message: LLMMessage): boolean {
     const TASK_FUNCTIONS = [
-      'createTask',
-      'updateTask',
-      'addTaskAssignee',
-      'updateTaskWorkload',
-      'updateTaskSchedule'
+      'create_task',
+      'update_task',
+      'add_task_assignee',
+      'update_task_workload',
+      'update_task_schedule'
     ];
 
     return message.tool_calls?.some(call =>
@@ -88,19 +88,19 @@ export class TaskHandler extends BaseHandler {
   ): Promise<void> {
     try {
       switch (functionName) {
-        case 'createTask':
+        case 'create_task':
           await this.handleCreateTask(parameters, context, messages);
           break;
-        case 'updateTask':
+        case 'update_task':
           await this.handleUpdateTask(parameters, context, messages);
           break;
-        case 'addTaskAssignee':
+        case 'add_task_assignee':
           await this.handleAddTaskAssignee(parameters, context, messages);
           break;
-        case 'updateTaskWorkload':
+        case 'update_task_workload':
           await this.handleUpdateTaskWorkload(parameters, context, messages);
           break;
-        case 'updateTaskSchedule':
+        case 'update_task_schedule':
           await this.handleUpdateTaskSchedule(parameters, context, messages);
           break;
         default:
@@ -142,15 +142,15 @@ export class TaskHandler extends BaseHandler {
    */
   private getSuccessMessage(functionName: string): string {
     switch (functionName) {
-      case 'createTask':
+      case 'create_task':
         return '任务创建成功';
-      case 'updateTask':
+      case 'update_task':
         return '任务已更新';
-      case 'addTaskAssignee':
+      case 'add_task_assignee':
         return '已添加任务协作者';
-      case 'updateTaskWorkload':
+      case 'update_task_workload':
         return '任务工作量已更新';
-      case 'updateTaskSchedule':
+      case 'update_task_schedule':
         return '任务计划已更新';
       default:
         return '操作成功';

@@ -7,16 +7,16 @@ export class ThreadHandler extends BaseHandler {
   canHandle(message: LLMMessage): boolean {
     if (!message.tool_calls || message.tool_calls.length === 0) return false;
 
-    // Check if any tool call is for setThreadTitle
+    // Check if any tool call is for set_thread_title
     return message.tool_calls.some(tool =>
-      tool.function && tool.function.name === 'setThreadTitle'
+      tool.function && tool.function.name === 'set_thread_title'
     );
   }
 
   async handle(message: LLMMessage, context: MessageContext): Promise<ChatMessage[]> {
-    // Find the setThreadTitle tool call
+    // Find the set_thread_title tool call
     const threadTitleCall = message.tool_calls?.find(tool =>
-      tool.function && tool.function.name === 'setThreadTitle'
+      tool.function && tool.function.name === 'set_thread_title'
     );
 
     if (!threadTitleCall || !threadTitleCall.function) {
