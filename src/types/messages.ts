@@ -1,23 +1,5 @@
-import { ChatMessage } from './chat';
-
-import { LLMMessage } from './chat';
-
 /**
- * Interface for message handlers
+ * 重新导出所有消息处理器类型
+ * 为了向后兼容，我们从messageTypes.ts导出所有类型
  */
-export interface MessageHandler {
-  canHandle(message: LLMMessage): boolean;
-  handle(message: LLMMessage, context: MessageContext): Promise<ChatMessage[]>;
-}
-
-/**
- * Context provided to message handlers
- */
-export interface MessageContext {
-  userId: string;
-  supabase: any;
-  chatHistory: ChatMessage[];
-  chatService: any;
-  threadId: string;
-  saveMessage?: (content: string, role: 'user' | 'assistant') => Promise<ChatMessage>;
-}
+export * from './messageTypes';

@@ -1,5 +1,4 @@
-import { ChatHistoryMessage, ChatResponse, ChatServiceConfig, LLMMessage } from '../types/chat';
-import type { FunctionDefinition, FunctionCall } from '../types/chat';
+import { ChatHistoryMessage, ChatResponse, ChatServiceConfig, LLMMessage, FunctionDefinition, FunctionCall } from '../types/messageTypes';
 import OpenAI from 'openai';
 
 /**
