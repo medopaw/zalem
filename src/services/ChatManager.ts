@@ -161,16 +161,27 @@ export class ChatManager {
         threadId: this.pendingThreadId
       };
 
-      // Parse and handle the message
-      const parsedMessages = await this.messageParser.parseMessage(
-        assistantMessage,
-        {
-          ...context,
-          saveMessage: (content: string, role: 'user' | 'assistant') =>
-            this.saveMessage(content, role)
-        }
-      );
-      newMessages.push(...parsedMessages);
+      // 如果 AI 响应为空，创建一个默认的文本响应
+      if (!assistantMessage) {
+        const defaultMessage = {
+          role: 'assistant',
+          content: '抱歉，我无法处理您的请求。请稍后再试。',
+          tool_calls: []
+        };
+        const defaultParsedMessage = await this.saveMessage(defaultMessage.content, 'assistant');
+        newMessages.push(defaultParsedMessage);
+      } else {
+        // Parse and handle the message
+        const parsedMessages = await this.messageParser.parseMessage(
+          assistantMessage,
+          {
+            ...context,
+            saveMessage: (content: string, role: 'user' | 'assistant') =>
+              this.saveMessage(content, role)
+          }
+        );
+        newMessages.push(...parsedMessages);
+      }
 
       // Update internal messages state with all new messages
       this.messages.push(...newMessages);

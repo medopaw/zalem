@@ -131,7 +131,8 @@ export class TaskHandler extends BaseHandler {
         'assistant',
         context
       ));
-      throw error; // Re-throw to ensure proper error handling
+      // 不再重新抛出错误，而是让消息处理继续
+      // throw error; // Re-throw to ensure proper error handling
     }
 
     return messages;

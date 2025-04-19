@@ -13,10 +13,10 @@ vi.mock('../../lib/supabase', () => ({
 // Mock Chat Service
 vi.mock('../../services/chatService', () => ({
   getChatService: vi.fn(() => ({
-    sendMessage: vi.fn().mockResolvedValue({ 
-      type: 'execution_result', 
-      status: 'success', 
-      message: '任务已更新' 
+    sendMessage: vi.fn().mockResolvedValue({
+      type: 'execution_result',
+      status: 'success',
+      message: '任务已更新'
     })
   }))
 }));
@@ -183,7 +183,7 @@ describe('Task Loading', () => {
   it('should order tasks by creation date descending', async () => {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
+
     const mockTasks = [
       {
         id: '1',
@@ -288,14 +288,19 @@ describe('Task Priority Update', () => {
       })
     }));
 
-    const updateMessage = JSON.stringify({
-      type: 'tool_call',
-      name: 'updateTask',
-      parameters: {
-        task_id: taskId,
-        priority: 'p1'
-      }
-    });
+    const updateMessage = {
+      content: '',
+      tool_calls: [{
+        type: 'function',
+        function: {
+          name: 'update_task',
+          arguments: JSON.stringify({
+            task_id: taskId,
+            priority: 'p1'
+          })
+        }
+      }]
+    };
 
     const context = {
       userId,
@@ -370,14 +375,19 @@ describe('Task Priority Update', () => {
       })
     }));
 
-    const updateMessage = JSON.stringify({
-      type: 'tool_call',
-      name: 'updateTask',
-      parameters: {
-        task_id: taskId,
-        priority: 'p0'
-      }
-    });
+    const updateMessage = {
+      content: '',
+      tool_calls: [{
+        type: 'function',
+        function: {
+          name: 'update_task',
+          arguments: JSON.stringify({
+            task_id: taskId,
+            priority: 'p0'
+          })
+        }
+      }]
+    };
 
     const context = {
       userId,

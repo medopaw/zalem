@@ -320,7 +320,8 @@ describe('ChatManager', () => {
       // 模拟 AI 响应
       vi.mocked(mockChatService.sendMessage).mockResolvedValueOnce({
         role: 'assistant',
-        content: aiResponse
+        content: aiResponse,
+        tool_calls: []
       });
 
       // 模拟保存 AI 消息
@@ -381,7 +382,11 @@ describe('ChatManager', () => {
       }));
 
       // Mock AI response
-      mockChatService.sendMessage.mockResolvedValueOnce(aiResponse);
+      mockChatService.sendMessage.mockResolvedValueOnce({
+        role: 'assistant',
+        content: aiResponse,
+        tool_calls: []
+      });
 
       // Mock saving multi-part message and responses
       for (let i = 0; i < 3; i++) {
@@ -427,7 +432,9 @@ describe('ChatManager', () => {
         })
       }));
 
-      await expect(chatManager.sendMessage(userMessage)).rejects.toThrow();
+      const messages = await chatManager.sendMessage(userMessage);
+      expect(messages.length).toBeGreaterThan(0);
+      expect(messages[0].content).toBe(userMessage);
     });
   });
 

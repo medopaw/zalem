@@ -24,13 +24,19 @@ export class MessageParser {
   /**
    * Parse and handle a plain text message
    */
-  async parseMessage(    
+  async parseMessage(
     llmMessage: LLMMessage,
     context: MessageContext
   ): Promise<ChatMessage[]> {
     console.log('Parsing LLM message:', llmMessage);
-    
+
     const messages: ChatMessage[] = [];
+
+    // 检查 llmMessage 是否存在
+    if (!llmMessage) {
+      console.error('Error: llmMessage is undefined');
+      return messages;
+    }
 
     // Save initial content if present
     if (llmMessage.content) {
@@ -41,7 +47,7 @@ export class MessageParser {
         }
       }
     }
-    
+
     // Handle tool calls first if present
     if (llmMessage.tool_calls?.length) {
       for (const handler of this.handlers) {
@@ -51,7 +57,16 @@ export class MessageParser {
         }
       }
     }
-    
+
+    // 如果没有内容也没有工具调用，但消息存在，使用默认文本处理器
+    if (!llmMessage.content && !llmMessage.tool_calls?.length && typeof llmMessage === 'object') {
+      const textHandler = this.handlers.find(h => h instanceof TextHandler);
+      if (textHandler) {
+        const handlerMessages = await textHandler.handle(llmMessage, context);
+        messages.push(...handlerMessages);
+      }
+    }
+
     return messages;
   }
 }
