@@ -1,10 +1,14 @@
-import { supabase } from '../lib/supabase';
 import { ChatMessage, ChatHistoryMessage } from '../types/chat';
 import { MessageParser } from './MessageParser';
 import { getChatService, SYSTEM_PROMPT } from './ChatService';
 import type { MessageContext } from '../types/messages';
 import type { ThreadUpdatedEventDetail } from '../types/events';
 import { DEFAULT_THREAD_TITLE } from '../constants/chat';
+import { IMessageRepository } from '../repositories/IMessageRepository';
+import { IThreadRepository } from '../repositories/IThreadRepository';
+import { SupabaseMessageRepository } from '../repositories/SupabaseMessageRepository';
+import { SupabaseThreadRepository } from '../repositories/SupabaseThreadRepository';
+import { supabase } from '../lib/supabase';
 
 const HISTORY_LIMIT = 10;
 const MESSAGES_FOR_TITLE = 5;
@@ -18,12 +22,18 @@ export class ChatManager {
   private threadTitle: string | null = DEFAULT_THREAD_TITLE;
   private titleGenerated: boolean = false;
   private initialized: boolean = false;
+  private messageRepository: IMessageRepository;
+  private threadRepository: IThreadRepository;
 
-  constructor(userId: string, threadId: string) {
+  constructor(userId: string, threadId: string,
+              messageRepo?: IMessageRepository,
+              threadRepo?: IThreadRepository) {
     this.userId = userId;
     this.threadId = threadId;
     this.messageParser = new MessageParser();
     this.initialized = false;
+    this.messageRepository = messageRepo || new SupabaseMessageRepository(supabase);
+    this.threadRepository = threadRepo || new SupabaseThreadRepository(supabase);
   }
 
   /**
@@ -40,32 +50,24 @@ export class ChatManager {
       }
 
       // Check if this is a new thread
-      const { data: thread, error: threadErr } = await supabase
-        .from('chat_threads')
-        .select('created_at, title')
-        .eq('id', this.threadId)
-        .single();
+      const { thread, error: threadErr } = await this.threadRepository.getThread(this.threadId);
 
       if (threadErr) {
-        return { messages: [], error: `Failed to load thread ${this.threadId}.\nError: ${threadErr}`};
+        return { messages: [], error: threadErr };
       }
 
       // Update thread title
       this.threadTitle = thread?.title || null;
 
       // Load existing messages
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('thread_id', this.threadId)
-        .order('created_at', { ascending: true });
+      const { messages, error } = await this.messageRepository.getMessages(this.threadId);
 
       if (error) {
-        return { messages: [], error: `Failed to load messages.\nError: ${error}` };
+        return { messages: [], error };
       }
 
       // 如果没有消息，则创建欢迎消息
-      const hasNoMessages = !data || data.length === 0;
+      const hasNoMessages = messages.length === 0;
 
       // 只在调试模式下输出日志
       if (process.env.NODE_ENV === 'development') {
@@ -73,13 +75,17 @@ export class ChatManager {
           id: this.threadId,
           created_at: thread?.created_at,
           hasNoMessages,
-          messageCount: data?.length || 0
+          messageCount: messages.length
         });
       }
 
       if (hasNoMessages) {
         console.log('No messages found, creating welcome message');
-        const welcomeMessage = await this.createWelcomeMessage();
+        const welcomeMessage = await this.messageRepository.createWelcomeMessage(
+          this.userId,
+          this.threadId
+        );
+
         if (welcomeMessage) {
           console.log('Welcome message created:', welcomeMessage);
           this.messages = [welcomeMessage];
@@ -90,7 +96,7 @@ export class ChatManager {
         return { messages: this.messages, error: null };
       }
 
-      this.messages = data || [];
+      this.messages = messages;
       return { messages: this.messages, error: null };
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -103,13 +109,10 @@ export class ChatManager {
    */
   private async initialize(): Promise<string | null> {
     try {
-      // Check Supabase connection
-      const { data, error } = await supabase
-        .from('chat_threads')
-        .select('id')
-        .limit(1);
+      // Check database connection
+      const isConnected = await this.threadRepository.checkConnection();
 
-      if (error) {
+      if (!isConnected) {
         return 'Failed to connect to the database';
       }
 
@@ -125,8 +128,7 @@ export class ChatManager {
    * Send a message and handle the response
    */
   async sendMessage(
-    content: string,
-    addToHistory: boolean = true
+    content: string
   ): Promise<ChatMessage[]> {
     // Lock the thread ID for this message
     this.pendingThreadId = this.threadId;
@@ -137,10 +139,10 @@ export class ChatManager {
       const newMessages = [userMessage];
 
       // Check if we should generate a title
-      let extraSystemPrompt = null;
+      let extraSystemPrompt: string | undefined = undefined;
       if (!this.titleGenerated && this.messages.length >= MESSAGES_FOR_TITLE) {
         this.titleGenerated = true;
-        extraSystemPrompt = '请根据以下对话内容生成一个简短的标题（不超过20个字）。标题应该概括对话的主要内容。必须使用 function call 格式设置标题。'
+        extraSystemPrompt = '请根据以下对话内容生成一个简短的标题（不超过20个字）。标题应该概括对话的主要内容。必须使用 function call 格式设置标题。';
       }
       // Get chat history for context
       const chatHistory = this.prepareChatHistory(content, extraSystemPrompt);
@@ -153,7 +155,7 @@ export class ChatManager {
       // Create message context
       const context: MessageContext = {
         userId: this.userId,
-        supabase,
+        supabase, // 暂时保留，后续版本将移除对 supabase 的直接依赖
         chatHistory,
         chatService,
         threadId: this.pendingThreadId
@@ -191,12 +193,7 @@ export class ChatManager {
    */
   async clearMessages(): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('chat_messages')
-        .delete()
-        .eq('thread_id', this.threadId);
-
-      if (error) throw error;
+      await this.messageRepository.clearMessages(this.threadId);
       this.messages = [];
     } catch (error) {
       console.error('Error clearing messages:', error);
@@ -211,56 +208,14 @@ export class ChatManager {
     return this.messages;
   }
 
-  private async createWelcomeMessage(): Promise<ChatMessage | null> {
-    try {
-      // 直接创建欢迎消息，不查询用户昵称
-      const welcomeMessage = "欢迎来到新对话！我能为您提供什么帮助？";
-      console.log('Creating welcome message for thread:', this.threadId);
 
-      // 直接向数据库插入消息，不经过其他逻辑
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .insert([{
-          content: welcomeMessage,
-          role: 'assistant',
-          user_id: this.userId,
-          thread_id: this.threadId
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error saving welcome message:', error);
-        return null;
-      }
-
-      console.log('Welcome message created successfully:', data);
-      return data;
-    } catch (error) {
-      console.error('Error creating welcome message:', error);
-      return null;
-    }
-  }
 
   private async saveMessage(
     content: string,
     role: 'user' | 'assistant'
   ): Promise<ChatMessage> {
     const threadId = this.pendingThreadId || this.threadId;
-
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .insert([{
-        content,
-        role,
-        user_id: this.userId,
-        thread_id: threadId
-      }])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return this.messageRepository.saveMessage(content, role, this.userId, threadId);
   }
 
   private prepareChatHistory(content: string, extraSystemPrompt?: string): ChatHistoryMessage[] {
@@ -286,22 +241,28 @@ export class ChatManager {
   private async broadcastThreadUpdate(): Promise<void> {
     try {
       const threadId = this.pendingThreadId || this.threadId;
+      const { threads } = await this.threadRepository.getThreads();
 
-      const { data: threads } = await supabase
-        .from('chat_threads')
-        .select('id, title, updated_at')
-        .order('updated_at', { ascending: false })
-        .throwOnError();
+      if (!threads) {
+        console.error('Failed to get threads for broadcast');
+        return;
+      }
 
       // Update thread title from the latest data
-      const currentThread = threads?.find(t => t.id === threadId);
+      const currentThread = threads.find(t => t.id === threadId);
       if (currentThread) {
         this.threadTitle = currentThread.title;
       }
 
+      // 确保 threads 中的 title 不为 null
+      const safeThreads = threads.map(t => ({
+        ...t,
+        title: t.title || ''
+      }));
+
       const event = new CustomEvent<ThreadUpdatedEventDetail>(
         'thread-updated',
-        { detail: { threads: threads || [] } }
+        { detail: { threads: safeThreads } }
       );
       window.dispatchEvent(event);
     } catch (error) {

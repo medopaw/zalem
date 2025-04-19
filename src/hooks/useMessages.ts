@@ -1,6 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import { ChatMessage } from '../types/chat';
 import { ChatManager } from '../services/ChatManager';
+import { supabase } from '../lib/supabase';
+import { SupabaseMessageRepository } from '../repositories/SupabaseMessageRepository';
+import { SupabaseThreadRepository } from '../repositories/SupabaseThreadRepository';
 
 export function useMessages(userId: string | undefined) {
   const [messagesByThread, setMessagesByThread] = useState<Record<string, ChatMessage[]>>({});
@@ -17,7 +20,9 @@ export function useMessages(userId: string | undefined) {
       if (process.env.NODE_ENV === 'development') {
         console.log(`Creating new ChatManager for thread ${threadId}`);
       }
-      chatManagerRef.current = new ChatManager(userId!, threadId);
+      const messageRepository = new SupabaseMessageRepository(supabase);
+      const threadRepository = new SupabaseThreadRepository(supabase);
+      chatManagerRef.current = new ChatManager(userId!, threadId, messageRepository, threadRepository);
       currentThreadRef.current = threadId;
     }
 

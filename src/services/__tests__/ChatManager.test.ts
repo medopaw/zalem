@@ -3,6 +3,9 @@ import { ChatManager } from '../ChatManager';
 import { supabase } from '../../lib/supabase';
 import { getChatService } from '../ChatService';
 import { DEFAULT_THREAD_TITLE } from '../../constants/chat';
+import { IMessageRepository } from '../../repositories/IMessageRepository';
+import { IThreadRepository } from '../../repositories/IThreadRepository';
+import { ChatMessage } from '../../types/chat';
 
 // Mock Supabase
 vi.mock('../../lib/supabase', () => ({
@@ -71,12 +74,83 @@ vi.mock('../chatService', () => ({
   SYSTEM_PROMPT: 'You are a helpful assistant.'
 }));
 
+// 创建模拟存储库
+class MockMessageRepository implements IMessageRepository {
+  async getMessages(_threadId: string): Promise<{ messages: ChatMessage[], error: string | null }> {
+    return { messages: [], error: null };
+  }
+
+  async saveMessage(
+    content: string,
+    role: 'user' | 'assistant',
+    userId: string,
+    threadId: string
+  ): Promise<ChatMessage> {
+    return {
+      id: '1',
+      content,
+      role,
+      user_id: userId,
+      thread_id: threadId,
+      created_at: new Date().toISOString()
+    };
+  }
+
+  async createWelcomeMessage(userId: string, threadId: string): Promise<ChatMessage | null> {
+    return {
+      id: 'welcome-msg',
+      content: '欢迎来到新对话！我能为您提供什么帮助？',
+      role: 'assistant',
+      user_id: userId,
+      thread_id: threadId,
+      created_at: new Date().toISOString()
+    };
+  }
+
+  async clearMessages(_threadId: string): Promise<void> {}
+}
+
+class MockThreadRepository implements IThreadRepository {
+  async getThread(_threadId: string): Promise<{
+    thread: { title: string | null, created_at: string } | null,
+    error: string | null
+  }> {
+    return {
+      thread: { title: DEFAULT_THREAD_TITLE, created_at: new Date().toISOString() },
+      error: null
+    };
+  }
+
+  async updateThreadTitle(_threadId: string, title: string): Promise<{
+    thread: { title: string | null } | null,
+    error: string | null
+  }> {
+    return { thread: { title }, error: null };
+  }
+
+  async getThreads(): Promise<{
+    threads: Array<{ id: string, title: string | null, updated_at: string }> | null,
+    error: string | null
+  }> {
+    return {
+      threads: [{ id: 'test-thread-id', title: DEFAULT_THREAD_TITLE, updated_at: new Date().toISOString() }],
+      error: null
+    };
+  }
+
+  async checkConnection(): Promise<boolean> {
+    return true;
+  }
+}
+
 describe('ChatManager', () => {
   const userId = 'test-user-id';
   const threadId = 'test-thread-id';
   let chatManager: ChatManager;
-  let mockSupabaseFrom: any;
-  let mockChatService: any;
+  let mockSupabaseFrom: ReturnType<typeof vi.fn>;
+  let mockChatService: { sendMessage: ReturnType<typeof vi.fn> };
+  let mockMessageRepository: IMessageRepository;
+  let mockThreadRepository: IThreadRepository;
 
   beforeEach(() => {
     // Reset all mocks
@@ -87,17 +161,29 @@ describe('ChatManager', () => {
       dispatchEvent: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
-    } as any;
-    
-    // Initialize ChatManager
-    chatManager = new ChatManager(userId, threadId);
-    
+    } as unknown as Window & typeof globalThis;
+
+    // 创建模拟存储库
+    mockMessageRepository = new MockMessageRepository();
+    mockThreadRepository = new MockThreadRepository();
+
+    // 使用模拟存储库初始化 ChatManager
+    chatManager = new ChatManager(userId, threadId, mockMessageRepository, mockThreadRepository);
+
     // Get mock references
     mockSupabaseFrom = supabase.from as unknown as ReturnType<typeof vi.fn>;
-    mockChatService = getChatService();
+    mockChatService = getChatService() as unknown as { sendMessage: ReturnType<typeof vi.fn> };
 
     // Mock dispatchEvent
     vi.spyOn(window, 'dispatchEvent');
+
+    // 为模拟存储库添加 spy
+    vi.spyOn(mockMessageRepository, 'getMessages');
+    vi.spyOn(mockMessageRepository, 'saveMessage');
+    vi.spyOn(mockMessageRepository, 'createWelcomeMessage');
+    vi.spyOn(mockMessageRepository, 'clearMessages');
+    vi.spyOn(mockThreadRepository, 'getThread');
+    vi.spyOn(mockThreadRepository, 'getThreads');
   });
 
   afterEach(() => {
@@ -106,119 +192,111 @@ describe('ChatManager', () => {
 
   describe('loadMessages', () => {
     it('should load existing messages for a thread', async () => {
-      const mockMessages = [
-        { 
-          id: '1', 
-          content: 'Hello', 
-          role: 'user', 
+      const mockMessages: ChatMessage[] = [
+        {
+          id: '1',
+          content: 'Hello',
+          role: 'user',
           created_at: new Date().toISOString(),
           thread_id: threadId,
           user_id: userId
         },
-        { 
-          id: '2', 
-          content: 'Hi there!', 
-          role: 'assistant', 
+        {
+          id: '2',
+          content: 'Hi there!',
+          role: 'assistant',
           created_at: new Date().toISOString(),
           thread_id: threadId,
           user_id: userId
         }
       ];
 
-      // Mock thread check
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        select: () => ({
-          eq: () => ({
-            single: () => ({ 
-              data: { 
-                created_at: new Date(Date.now() - 10000).toISOString(),
-                title: 'Test Thread'
-              },
-              error: null
-            })
-          })
-        })
-      }));
+      // 模拟线程存储库返回线程信息
+      vi.mocked(mockThreadRepository.getThread).mockResolvedValueOnce({
+        thread: {
+          created_at: new Date(Date.now() - 10000).toISOString(),
+          title: 'Test Thread'
+        },
+        error: null
+      });
 
-      // Mock messages fetch
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        select: () => ({
-          eq: () => ({
-            order: () => ({ 
-              data: mockMessages,
-              error: null
-            })
-          })
-        })
-      }));
+      // 模拟消息存储库返回消息列表
+      vi.mocked(mockMessageRepository.getMessages).mockResolvedValueOnce({
+        messages: mockMessages,
+        error: null
+      });
 
-      const messages = await chatManager.loadMessages();
-      expect(messages).toEqual(mockMessages);
+      const result = await chatManager.loadMessages();
+      expect(result.messages).toEqual(mockMessages);
+      expect(result.error).toBeNull();
     });
 
     it('should create welcome message for new thread', async () => {
-      const mockNickname = 'Test User';
-      const createdAt = new Date().toISOString();
+      // 模拟线程存储库返回线程信息
+      vi.mocked(mockThreadRepository.getThread).mockResolvedValueOnce({
+        thread: {
+          created_at: new Date().toISOString(),
+          title: DEFAULT_THREAD_TITLE
+        },
+        error: null
+      });
 
-      // Mock thread check - new thread
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        select: () => ({
-          eq: () => ({
-            single: () => ({ data: { created_at: new Date().toISOString() } })
-          })
-        })
-      }));
+      // 模拟消息存储库返回空消息列表
+      vi.mocked(mockMessageRepository.getMessages).mockResolvedValueOnce({
+        messages: [],
+        error: null
+      });
 
-      // Mock empty messages
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        select: () => ({
-          eq: () => ({
-            order: () => ({ data: [] })
-          })
-        })
-      }));
+      // 模拟创建欢迎消息
+      const welcomeMessage = {
+        id: 'welcome-msg',
+        content: '欢迎来到新对话！我能为您提供什么帮助？',
+        role: 'assistant' as const,
+        user_id: userId,
+        thread_id: threadId,
+        created_at: new Date().toISOString()
+      };
 
-      // Mock user nickname fetch
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        select: () => ({
-          eq: () => ({
-            single: () => ({ data: { nickname: mockNickname } })
-          })
-        })
-      }));
+      vi.mocked(mockMessageRepository.createWelcomeMessage).mockResolvedValueOnce(welcomeMessage);
 
-      // Mock welcome message save
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        insert: () => ({
-          select: () => ({
-            single: () => ({
-              data: {
-                id: 'welcome-msg',
-                content: `欢迎回来，${mockNickname}！您在忙什么呢？`,
-                role: 'assistant',
-                created_at: createdAt
-              }
-            })
-          })
-        })
-      }));
-
-      const messages = await chatManager.loadMessages();
-      expect(messages).toHaveLength(1);
-      expect(messages[0].content).toContain(mockNickname);
-      expect(messages[0].role).toBe('assistant');
+      const result = await chatManager.loadMessages();
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].content).toBe('欢迎来到新对话！我能为您提供什么帮助？');
+      expect(result.messages[0].role).toBe('assistant');
+      expect(mockMessageRepository.createWelcomeMessage).toHaveBeenCalledWith(userId, threadId);
     });
 
     it('should handle errors when loading messages', async () => {
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        select: () => ({
-          eq: () => {
-            throw new Error('Database error');
-          }
-        })
-      }));
+      // 模拟线程存储库返回错误
+      vi.mocked(mockThreadRepository.getThread).mockResolvedValueOnce({
+        thread: null,
+        error: 'Failed to load thread'
+      });
 
-      await expect(chatManager.loadMessages()).rejects.toThrow('Failed to load messages');
+      const result = await chatManager.loadMessages();
+      expect(result.messages).toEqual([]);
+      expect(result.error).toBe('Failed to load thread');
+    });
+
+    it('should handle errors when loading messages from message repository', async () => {
+      // 模拟线程存储库返回正常结果
+      vi.mocked(mockThreadRepository.getThread).mockResolvedValueOnce({
+        thread: {
+          created_at: new Date().toISOString(),
+          title: DEFAULT_THREAD_TITLE
+        },
+        error: null
+      });
+
+      // 模拟消息存储库返回错误
+      vi.mocked(mockMessageRepository.getMessages).mockResolvedValueOnce({
+        messages: [],
+        error: 'Failed to load messages'
+      });
+
+      const result = await chatManager.loadMessages();
+      expect(result.messages).toEqual([]);
+      expect(result.error).toBe('Failed to load messages');
     });
   });
 
@@ -228,54 +306,46 @@ describe('ChatManager', () => {
       const aiResponse = 'Hi there!';
       const createdAt = new Date().toISOString();
 
-      // Mock saving user message
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        insert: () => ({
-          select: () => ({
-            single: () => ({
-              data: {
-                id: '1',
-                content: userMessage,
-                role: 'user',
-                created_at: createdAt
-              }
-            })
-          })
-        })
-      }));
+      // 模拟保存用户消息
+      const userMessageObj: ChatMessage = {
+        id: '1',
+        content: userMessage,
+        role: 'user',
+        user_id: userId,
+        thread_id: threadId,
+        created_at: createdAt
+      };
+      vi.mocked(mockMessageRepository.saveMessage).mockResolvedValueOnce(userMessageObj);
 
-      // Mock AI response
-      mockChatService.sendMessage.mockResolvedValueOnce(aiResponse);
+      // 模拟 AI 响应
+      vi.mocked(mockChatService.sendMessage).mockResolvedValueOnce({
+        role: 'assistant',
+        content: aiResponse
+      });
 
-      // Mock saving AI message
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        insert: () => ({
-          select: () => ({
-            single: () => ({
-              data: {
-                id: '2',
-                content: aiResponse,
-                role: 'assistant',
-                created_at: createdAt
-              }
-            })
-          })
-        })
-      }));
+      // 模拟保存 AI 消息
+      const aiMessageObj: ChatMessage = {
+        id: '2',
+        content: aiResponse,
+        role: 'assistant',
+        user_id: userId,
+        thread_id: threadId,
+        created_at: createdAt
+      };
+      vi.mocked(mockMessageRepository.saveMessage).mockResolvedValueOnce(aiMessageObj);
 
-      // Mock thread update
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        select: () => ({
-          order: () => ({
-            ascending: () => ({ data: [] })
-          })
-        })
-      }));
+      // 模拟获取线程列表
+      vi.mocked(mockThreadRepository.getThreads).mockResolvedValueOnce({
+        threads: [{ id: threadId, title: 'Test Thread', updated_at: new Date().toISOString() }],
+        error: null
+      });
 
       const messages = await chatManager.sendMessage(userMessage);
       expect(messages).toHaveLength(2);
       expect(messages[0].content).toBe(userMessage);
       expect(messages[1].content).toBe(aiResponse);
+      expect(mockMessageRepository.saveMessage).toHaveBeenCalledTimes(2);
+      expect(mockThreadRepository.getThreads).toHaveBeenCalledTimes(1);
     });
 
     it('should handle multi-part AI responses', async () => {
@@ -363,24 +433,17 @@ describe('ChatManager', () => {
 
   describe('clearMessages', () => {
     it('should clear all messages in the thread', async () => {
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        delete: () => ({
-          eq: () => ({ error: null })
-        })
-      }));
+      // 模拟清除消息
+      vi.mocked(mockMessageRepository.clearMessages).mockResolvedValueOnce();
 
       await chatManager.clearMessages();
       expect(chatManager.getMessages()).toHaveLength(0);
+      expect(mockMessageRepository.clearMessages).toHaveBeenCalledWith(threadId);
     });
 
     it('should handle errors when clearing messages', async () => {
-      mockSupabaseFrom.mockImplementationOnce(() => ({
-        delete: () => ({
-          eq: () => {
-            throw new Error('Database error');
-          }
-        })
-      }));
+      // 模拟清除消息时出错
+      vi.mocked(mockMessageRepository.clearMessages).mockRejectedValueOnce(new Error('Database error'));
 
       await expect(chatManager.clearMessages()).rejects.toThrow('Failed to clear messages');
     });

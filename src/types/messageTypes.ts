@@ -1,6 +1,6 @@
 /**
  * 消息类型定义
- * 
+ *
  * 这个文件包含所有与消息相关的类型定义，包括：
  * - 消息角色
  * - 消息内容
@@ -100,7 +100,9 @@ export interface MessageHandler {
 export interface MessageContext {
   /** 当前用户ID */
   userId: string;
-  /** Supabase客户端实例 */
+  /** Supabase客户端实例
+   * @deprecated 将在未来版本中移除，请使用存储库模式代替直接访问 Supabase
+   */
   supabase: SupabaseClient;
   /** 聊天历史 */
   chatHistory: ChatHistoryMessage[];
