@@ -67,7 +67,7 @@ vi.mock('../../lib/supabase', () => ({
 }));
 
 // Mock Chat Service
-vi.mock('../chatService', () => ({
+vi.mock('../ChatService', () => ({
   getChatService: vi.fn(() => ({
     sendMessage: vi.fn()
   })),
