@@ -20,14 +20,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Add health check function
-export const checkSupabaseConnection = async () => {
-  try {
-    const { error } = await supabase.from('chat_threads').select('id').limit(1);
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Supabase connection error:', error);
-    return false;
-  }
+// 导出工具函数
+export { checkSupabaseConnection } from '../utils/supabaseUtils';
+
+// 为了向后兼容，提供一个直接使用默认 supabase 实例的版本
+export const checkConnection = async () => {
+  const { checkSupabaseConnection } = await import('../utils/supabaseUtils');
+  return checkSupabaseConnection(supabase);
 };

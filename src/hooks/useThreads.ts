@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase, checkSupabaseConnection } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { checkSupabaseConnection } from '../utils/supabaseUtils';
 import type { ThreadUpdatedEventDetail } from '../types/events';
 
 export interface Thread {
@@ -68,7 +69,7 @@ export function useThreads() {
   const loadThreads = async () => {
     try {
       // First check if Supabase is connected
-      const isConnected = await checkSupabaseConnection();
+      const isConnected = await checkSupabaseConnection(supabase);
       if (!isConnected) {
         throw new Error('Unable to connect to Supabase');
       }

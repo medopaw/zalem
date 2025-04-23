@@ -16,7 +16,7 @@
 - 多处发现重复的代码片段，特别是在服务层：
   - ~~`ChatService.ts` 和 `chatService.ts` 中存在大量重复代码~~ (已修复)
   - ~~系统提示文本 `SYSTEM_PROMPT` 在多个文件中重复定义~~ (已修复，创建了 `src/constants/prompts.ts` 文件集中管理所有提示文本)
-  - Supabase 连接检查逻辑在 `src/lib/supabase.ts` 和 `src/repositories/SupabaseThreadRepository.ts` 中重复
+  - ~~Supabase 连接检查逻辑在 `src/lib/supabase.ts` 和 `src/repositories/SupabaseThreadRepository.ts` 中重复~~ (已修复，创建了 `src/utils/supabaseUtils.ts` 文件集中管理 Supabase 相关工具函数)
 
 ### 1.3 文件结构混乱
 

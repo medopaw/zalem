@@ -14,9 +14,9 @@ export class SupabaseThreadRepository implements IThreadRepository {
   /**
    * 获取线程信息
    */
-  async getThread(threadId: string): Promise<{ 
-    thread: { title: string | null, created_at: string } | null, 
-    error: string | null 
+  async getThread(threadId: string): Promise<{
+    thread: { title: string | null, created_at: string } | null,
+    error: string | null
   }> {
     try {
       const { data, error } = await this.supabase
@@ -26,8 +26,8 @@ export class SupabaseThreadRepository implements IThreadRepository {
         .single();
 
       if (error) {
-        return { 
-          thread: null, 
+        return {
+          thread: null,
           error: `Failed to load thread ${threadId}.\nError: ${error}`
         };
       }
@@ -35,9 +35,9 @@ export class SupabaseThreadRepository implements IThreadRepository {
       return { thread: data, error: null };
     } catch (error) {
       console.error('Error loading thread:', error);
-      return { 
-        thread: null, 
-        error: 'Failed to load thread' 
+      return {
+        thread: null,
+        error: 'Failed to load thread'
       };
     }
   }
@@ -58,8 +58,8 @@ export class SupabaseThreadRepository implements IThreadRepository {
         .single();
 
       if (error) {
-        return { 
-          thread: null, 
+        return {
+          thread: null,
           error: `Failed to update thread title.\nError: ${error}`
         };
       }
@@ -67,9 +67,9 @@ export class SupabaseThreadRepository implements IThreadRepository {
       return { thread: data, error: null };
     } catch (error) {
       console.error('Error updating thread title:', error);
-      return { 
-        thread: null, 
-        error: 'Failed to update thread title' 
+      return {
+        thread: null,
+        error: 'Failed to update thread title'
       };
     }
   }
@@ -88,8 +88,8 @@ export class SupabaseThreadRepository implements IThreadRepository {
         .order('updated_at', { ascending: false });
 
       if (error) {
-        return { 
-          threads: null, 
+        return {
+          threads: null,
           error: `Failed to load threads.\nError: ${error}`
         };
       }
@@ -97,9 +97,9 @@ export class SupabaseThreadRepository implements IThreadRepository {
       return { threads: data, error: null };
     } catch (error) {
       console.error('Error loading threads:', error);
-      return { 
-        threads: null, 
-        error: 'Failed to load threads' 
+      return {
+        threads: null,
+        error: 'Failed to load threads'
       };
     }
   }
@@ -108,16 +108,7 @@ export class SupabaseThreadRepository implements IThreadRepository {
    * 检查数据库连接
    */
   async checkConnection(): Promise<boolean> {
-    try {
-      const { error } = await this.supabase
-        .from('chat_threads')
-        .select('id')
-        .limit(1);
-      
-      return !error;
-    } catch (error) {
-      console.error('Supabase connection error:', error);
-      return false;
-    }
+    const { checkSupabaseConnection } = await import('../utils/supabaseUtils');
+    return checkSupabaseConnection(this.supabase, 'chat_threads');
   }
 }
