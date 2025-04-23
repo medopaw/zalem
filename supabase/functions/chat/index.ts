@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
 
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { 
+    return new Response(null, {
       status: 200,
       headers,
     });
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     // Validate request method
     if (req.method !== "POST") {
       return new Response(
-        JSON.stringify({ error: "Method not allowed" }), 
+        JSON.stringify({ error: "Method not allowed" }),
         { status: 405, headers }
       );
     }
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
 
     if (!supabaseUrl || !supabaseKey) {
       return new Response(
-        JSON.stringify({ error: "Server configuration error" }), 
+        JSON.stringify({ error: "Server configuration error" }),
         { status: 500, headers }
       );
     }
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     if (settingsError || !settings?.value) {
       console.error("Settings error:", settingsError);
       return new Response(
-        JSON.stringify({ error: "API key not configured" }), 
+        JSON.stringify({ error: "API key not configured" }),
         { status: 500, headers }
       );
     }
@@ -68,10 +68,10 @@ Deno.serve(async (req) => {
     try {
       const body = await req.json();
       messages = body.messages;
-      
+
       if (!Array.isArray(messages)) {
         return new Response(
-          JSON.stringify({ error: "Invalid messages format" }), 
+          JSON.stringify({ error: "Invalid messages format" }),
           { status: 400, headers }
         );
       }
@@ -83,9 +83,12 @@ Deno.serve(async (req) => {
           content: "You are a helpful assistant."
         });
       }
+
+      // Note: In a future update, we should import the SIMPLE_SYSTEM_PROMPT from a shared constants file
+      // This would require setting up a shared package or using a monorepo structure
     } catch (e) {
       return new Response(
-        JSON.stringify({ error: "Invalid request body" }), 
+        JSON.stringify({ error: "Invalid request body" }),
         { status: 400, headers }
       );
     }
@@ -110,7 +113,7 @@ Deno.serve(async (req) => {
     console.log("Received response from DeepSeek:", completion);
 
     return new Response(
-      JSON.stringify(completion), 
+      JSON.stringify(completion),
       { status: 200, headers }
     );
   } catch (error) {
@@ -123,7 +126,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ error: errorMessage }), 
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers }
     );
   }

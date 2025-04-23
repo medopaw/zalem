@@ -70,8 +70,13 @@ vi.mock('../../lib/supabase', () => ({
 vi.mock('../ChatService', () => ({
   getChatService: vi.fn(() => ({
     sendMessage: vi.fn()
-  })),
-  SYSTEM_PROMPT: 'You are a helpful assistant.'
+  }))
+}));
+
+// Mock prompts
+vi.mock('../../constants/prompts', () => ({
+  SYSTEM_PROMPT: 'You are a helpful assistant.',
+  TITLE_GENERATION_PROMPT: 'Please generate a title for this conversation.'
 }));
 
 // 创建模拟存储库

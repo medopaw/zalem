@@ -1,6 +1,7 @@
 import { ChatMessage, ChatHistoryMessage } from '../types/chat';
 import { MessageParser } from './MessageParser';
-import { getChatService, SYSTEM_PROMPT } from './ChatService';
+import { getChatService } from './ChatService';
+import { SYSTEM_PROMPT, TITLE_GENERATION_PROMPT } from '../constants/prompts';
 import type { MessageContext } from '../types/messages';
 import type { ThreadUpdatedEventDetail } from '../types/events';
 import { DEFAULT_THREAD_TITLE } from '../constants/chat';
@@ -142,7 +143,7 @@ export class ChatManager {
       let extraSystemPrompt: string | undefined = undefined;
       if (!this.titleGenerated && this.messages.length >= MESSAGES_FOR_TITLE) {
         this.titleGenerated = true;
-        extraSystemPrompt = '请根据以下对话内容生成一个简短的标题（不超过20个字）。标题应该概括对话的主要内容。必须使用 function call 格式设置标题。';
+        extraSystemPrompt = TITLE_GENERATION_PROMPT;
       }
       // Get chat history for context
       const chatHistory = this.prepareChatHistory(content, extraSystemPrompt);
