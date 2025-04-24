@@ -38,8 +38,11 @@ function Chat() {
     messages,
     loading,
     error: messageError,
+    isNetworkError,
+    lastFailedMessage,
     sendMessage,
-    loadMessages
+    loadMessages,
+    retryLastMessage
   } = useMessages(user?.id);
   // const [hasWelcomeMessageRef] = useState({ current: false });
 
@@ -245,7 +248,12 @@ function Chat() {
           {chatServiceState.initialized && (
             <>
               <div className="flex-1 overflow-hidden rounded-tr-lg">
-                <MessageList messages={messages} error={messageError || threadError} />
+                <MessageList
+                  messages={messages}
+                  error={messageError || threadError}
+                  isNetworkError={isNetworkError}
+                  onRetry={lastFailedMessage ? retryLastMessage : undefined}
+                />
               </div>
 
               <div className="border-t bg-white rounded-br-lg">

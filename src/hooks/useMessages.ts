@@ -5,10 +5,17 @@ import { supabase } from '../lib/supabase';
 import { SupabaseMessageRepository } from '../repositories/SupabaseMessageRepository';
 import { SupabaseThreadRepository } from '../repositories/SupabaseThreadRepository';
 
+// 网络错误类型定义，与 AIService 中的保持一致
+interface NetworkError extends Error {
+  isNetworkError: boolean;
+}
+
 export function useMessages(userId: string | undefined) {
   const [messagesByThread, setMessagesByThread] = useState<Record<string, ChatMessage[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNetworkError, setIsNetworkError] = useState(false);
+  const [lastFailedMessage, setLastFailedMessage] = useState<{content: string, threadId: string} | null>(null);
   const chatManagerRef = useRef<ChatManager | null>(null);
   const currentThreadRef = useRef<string | null>(null);
 
@@ -85,6 +92,9 @@ export function useMessages(userId: string | undefined) {
     }
   };
 
+  /**
+   * 发送消息到服务器
+   */
   const sendMessage = useCallback(async (
     content: string,
     threadId: string | null
@@ -94,6 +104,7 @@ export function useMessages(userId: string | undefined) {
 
     setLoading(true);
     setError(null);
+    setIsNetworkError(false);
 
     // Create and add temporary message to UI immediately
     const tempMessage: ChatMessage = {
@@ -111,7 +122,12 @@ export function useMessages(userId: string | undefined) {
     }));
 
     try {
-      const newMessages = await chatManagerRef.current?.sendMessage(content);
+      // 确保 chatManager 存在
+      if (!chatManagerRef.current) {
+        throw new Error('聊天管理器未初始化');
+      }
+
+      const newMessages = await chatManagerRef.current.sendMessage(content);
       if (newMessages?.length) {
         // Replace temp message with real messages
         setMessagesByThread(prev => {
@@ -125,7 +141,26 @@ export function useMessages(userId: string | undefined) {
       }
     } catch (error) {
       console.error('Error in chat:', error);
-      setError(error instanceof Error ? error.message : 'An error occurred while sending message');
+
+      // 检查是否是网络错误
+      const isNetworkErr = error instanceof Error &&
+        ((error as any).isNetworkError ||
+         error.message.includes('无法连接') ||
+         error.message.includes('Failed to fetch') ||
+         error.message.includes('net::ERR_CONNECTION_CLOSED'));
+
+      // 设置错误状态
+      if (isNetworkErr) {
+        setIsNetworkError(true);
+        setError('无法连接到聊天服务。请检查您的网络连接并点击重试。');
+        // 保存失败的消息以便重试
+        setLastFailedMessage({ content, threadId });
+      } else if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('发送消息时出错');
+      }
+
       // Remove temporary message on error
       setMessagesByThread(prev => ({
         ...prev,
@@ -135,6 +170,23 @@ export function useMessages(userId: string | undefined) {
       setLoading(false);
     }
   }, [loading, userId]);
+
+  /**
+   * 重试上一次失败的消息
+   */
+  const retryLastMessage = useCallback(async () => {
+    if (!lastFailedMessage || loading || !userId) return;
+
+    const { content, threadId } = lastFailedMessage;
+    // 清除上次失败的消息记录
+    setLastFailedMessage(null);
+    // 重置错误状态
+    setError(null);
+    setIsNetworkError(false);
+
+    // 重新发送消息
+    await sendMessage(content, threadId);
+  }, [lastFailedMessage, loading, userId, sendMessage]);
 
   const clearMessages = async (threadId: string) => {
     if (!window.confirm('Are you sure you want to clear the chat history?')) {
@@ -163,8 +215,11 @@ export function useMessages(userId: string | undefined) {
     messages: messagesByThread[currentThreadRef.current || ''] || [],
     loading,
     error,
+    isNetworkError,
+    lastFailedMessage,
     sendMessage,
     loadMessages,
-    clearMessages
+    clearMessages,
+    retryLastMessage
   };
 }

@@ -1,6 +1,19 @@
-import { ChatHistoryMessage, ChatResponse, ChatServiceConfig, LLMMessage, FunctionDefinition, FunctionCall } from '../../types/messageTypes';
+import { ChatHistoryMessage, ChatServiceConfig, LLMMessage } from '../../types/messageTypes';
 import OpenAI from 'openai';
-import { SYSTEM_PROMPT, TITLE_GENERATION_SYSTEM_PROMPT } from '../../constants/prompts';
+import { TITLE_GENERATION_SYSTEM_PROMPT } from '../../constants/prompts';
+import { createClient } from '@supabase/supabase-js';
+
+/**
+ * 自定义网络错误类
+ */
+class NetworkError extends Error {
+  isNetworkError: boolean = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
 
 /**
  * Default configuration for the AI service
@@ -299,10 +312,21 @@ export class AIService {
       return completion.choices[0].message;
     } catch (error) {
       console.error('Error in sendSingleMessage:', error);
-      return {
-        role: 'assistant',
-        content: '抱歉，我遇到了一些问题。请稍后再试。'
-      };
+
+      // 判断是否是网络错误
+      const isNetworkError = error instanceof TypeError &&
+        (error.message === 'Failed to fetch' ||
+         error.message.includes('net::ERR_CONNECTION_CLOSED'));
+
+      if (isNetworkError) {
+        throw new NetworkError('无法连接到聊天服务。请检查您的网络连接并重试。');
+      }
+
+      if (error instanceof Error) {
+        throw new Error(`聊天服务错误: ${error.message}`);
+      } else {
+        throw new Error('发生未知错误，请稍后重试。');
+      }
     }
   }
 
@@ -372,17 +396,22 @@ export class AIService {
       return message;
 
     } catch (error) {
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        // throw new Error('Unable to connect to the chat service. Please check your internet connection and try again.');
-      }
-      // throw new Error(error instanceof Error ? error.message : 'Unknown error occurred');
-      console.error(error);
+      // 详细记录错误信息
+      console.error('Error in sendMessage:', error);
 
-      // 返回一个默认的错误消息
-      return {
-        role: 'assistant',
-        content: '抱歉，我遇到了一些问题。请稍后再试。'
-      };
+      // 判断是否是网络错误
+      const isNetworkError = error instanceof TypeError &&
+        (error.message === 'Failed to fetch' ||
+         error.message.includes('net::ERR_CONNECTION_CLOSED'));
+
+      // 抛出错误，并标记错误类型以便上层处理
+      if (isNetworkError) {
+        throw new NetworkError('无法连接到聊天服务。请检查您的网络连接并重试。');
+      } else if (error instanceof Error) {
+        throw new Error(`聊天服务错误: ${error.message}`);
+      } else {
+        throw new Error('发生未知错误，请稍后重试。');
+      }
     }
   }
 }
@@ -412,7 +441,7 @@ function getStorage(): Window | typeof globalStorage {
  * @returns Initialized AI service instance
  * @throws {Error} If API key retrieval fails
  */
-export const initializeAIService = async (supabase: any): Promise<AIService> => {
+export const initializeAIService = async (supabase: ReturnType<typeof createClient>): Promise<AIService> => {
   const { data, error } = await supabase
     .from('system_settings')
     .select('value')
