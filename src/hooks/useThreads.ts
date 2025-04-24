@@ -3,12 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { checkSupabaseConnection } from '../utils/supabaseUtils';
 import type { ThreadUpdatedEventDetail } from '../types/events';
-
-export interface Thread {
-  id: string;
-  title: string;
-  updated_at: string;
-}
+import type { Thread } from '../types/threads';
 
 export function useThreads() {
   const [searchParams, setSearchParams] = useSearchParams();

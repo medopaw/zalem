@@ -2,12 +2,7 @@ import React from 'react';
 import { MessageSquare, Plus, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-
-interface Thread {
-  id: string;
-  title: string;
-  updated_at: string;
-}
+import type { Thread } from '../types/threads';
 
 interface ThreadListProps {
   threads: Thread[];

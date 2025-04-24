@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { IThreadRepository } from './IThreadRepository';
+import { Thread } from '../types/threads';
 
 /**
  * Supabase 实现的线程存储库
@@ -78,7 +79,7 @@ export class SupabaseThreadRepository implements IThreadRepository {
    * 获取所有线程列表
    */
   async getThreads(): Promise<{
-    threads: Array<{ id: string, title: string | null, updated_at: string }> | null,
+    threads: Thread[] | null,
     error: string | null
   }> {
     try {

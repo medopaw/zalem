@@ -32,7 +32,7 @@ export class MessageParser {
 
     const messages: ChatMessage[] = [];
 
-    // 检查 llmMessage 是否存在
+    // Check if llmMessage exists
     if (!llmMessage) {
       console.error('Error: llmMessage is undefined');
       return messages;
@@ -58,7 +58,7 @@ export class MessageParser {
       }
     }
 
-    // 如果没有内容也没有工具调用，但消息存在，使用默认文本处理器
+    // If there's no content and no tool calls, but the message exists, use the default text handler
     if (!llmMessage.content && !llmMessage.tool_calls?.length && typeof llmMessage === 'object') {
       const textHandler = this.handlers.find(h => h instanceof TextHandler);
       if (textHandler) {

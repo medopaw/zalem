@@ -6,6 +6,7 @@ import { DEFAULT_THREAD_TITLE } from '../../constants/chat';
 import { IMessageRepository } from '../../repositories/IMessageRepository';
 import { IThreadRepository } from '../../repositories/IThreadRepository';
 import { ChatMessage } from '../../types/chat';
+import { Thread } from '../../types/threads';
 
 // Mock Supabase
 vi.mock('../../lib/supabase', () => ({
@@ -134,7 +135,7 @@ class MockThreadRepository implements IThreadRepository {
   }
 
   async getThreads(): Promise<{
-    threads: Array<{ id: string, title: string | null, updated_at: string }> | null,
+    threads: Thread[] | null,
     error: string | null
   }> {
     return {

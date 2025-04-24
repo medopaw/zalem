@@ -1,9 +1,10 @@
+import { Thread } from './threads';
+
+/**
+ * 线程更新事件的详细信息
+ */
 export interface ThreadUpdatedEventDetail {
-  threads: Array<{
-    id: string;
-    title: string;
-    updated_at: string;
-  }>;
+  threads: Thread[];
 }
 
 declare global {
