@@ -77,7 +77,7 @@ vi.mock('../ChatService', () => ({
 // Mock prompts
 vi.mock('../../constants/prompts', () => ({
   SYSTEM_PROMPT: 'You are a helpful assistant.',
-  TITLE_GENERATION_PROMPT: 'Please generate a title for this conversation.'
+  TITLE_GENERATION_SYSTEM_PROMPT: 'You are a specialized assistant for generating conversation titles.'
 }));
 
 // 创建模拟存储库

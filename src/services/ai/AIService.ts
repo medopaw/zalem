@@ -1,6 +1,6 @@
 import { ChatHistoryMessage, ChatResponse, ChatServiceConfig, LLMMessage, FunctionDefinition, FunctionCall } from '../../types/messageTypes';
 import OpenAI from 'openai';
-import { SYSTEM_PROMPT } from '../../constants/prompts';
+import { SYSTEM_PROMPT, TITLE_GENERATION_SYSTEM_PROMPT } from '../../constants/prompts';
 
 /**
  * Default configuration for the AI service
@@ -209,20 +209,7 @@ const AVAILABLE_FUNCTIONS = [
       properties: {}
     }
   },
-  {
-    name: 'set_thread_title',
-    description: '设置会话标题',
-    parameters: {
-      type: 'object',
-      properties: {
-        title: {
-          type: 'string',
-          description: '会话标题'
-        }
-      },
-      required: ['title']
-    }
-  }
+  // set_thread_title 已移除，改为使用 sendSingleMessage 方法生成标题
 ];
 
 /**
@@ -257,6 +244,86 @@ export class AIService {
       ];
     }
     return messages;
+  }
+
+  /**
+   * 发送单条消息到AI并获取回应，不包含消息历史
+   * @param systemPrompt - 系统提示
+   * @param userMessage - 用户消息
+   * @param enableTools - 是否启用工具调用，默认为false
+   * @returns AI响应消息
+   */
+  async sendSingleMessage(
+    systemPrompt: string,
+    userMessage: string,
+    enableTools: boolean = false
+  ): Promise<LLMMessage> {
+    try {
+      // 准备消息
+      const messages: ChatHistoryMessage[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ];
+
+      // 准备工具（如果启用）
+      const tools = enableTools ? AVAILABLE_FUNCTIONS.map(fn => ({
+        type: 'function' as const,
+        function: fn
+      })) : undefined;
+
+      // 打印请求内容以便调试
+      console.log('LLM Single Message Request:', {
+        model: DEFAULT_CONFIG.model,
+        messages,
+        temperature: DEFAULT_CONFIG.temperature,
+        max_tokens: DEFAULT_CONFIG.maxTokens,
+        tools,
+        tool_choice: enableTools ? 'auto' : undefined,
+        response_format: { type: 'text' }
+      });
+
+      // 发送请求
+      const completion = await this.openai.chat.completions.create({
+        model: DEFAULT_CONFIG.model,
+        messages,
+        temperature: DEFAULT_CONFIG.temperature,
+        max_tokens: DEFAULT_CONFIG.maxTokens,
+        tools,
+        tool_choice: enableTools ? 'auto' : undefined,
+        response_format: { type: 'text' }
+      });
+
+      // 记录响应
+      console.log('LLM Single Message Response:', completion.choices[0].message);
+
+      return completion.choices[0].message;
+    } catch (error) {
+      console.error('Error in sendSingleMessage:', error);
+      return {
+        role: 'assistant',
+        content: '抱歉，我遇到了一些问题。请稍后再试。'
+      };
+    }
+  }
+
+  /**
+   * 生成对话标题
+   * @param conversationHistory - 对话历史
+   * @returns 生成的标题
+   */
+  async generateTitle(conversationHistory: string): Promise<string> {
+    try {
+      const response = await this.sendSingleMessage(
+        TITLE_GENERATION_SYSTEM_PROMPT,
+        conversationHistory
+      );
+
+      // 返回生成的标题（去除可能的引号和空格）
+      return (response.content || '新对话').trim().replace(/^"|"$/g, '');
+    } catch (error) {
+      console.error('Error generating title:', error);
+      return '新对话';
+    }
   }
 
   /**

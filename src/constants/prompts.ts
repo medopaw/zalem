@@ -48,7 +48,15 @@ export const SYSTEM_PROMPT = `你是一个友好的中文助手。请用中文�
 export const SIMPLE_SYSTEM_PROMPT = 'You are a helpful assistant.';
 
 /**
- * 标题生成提示
- * 用于生成对话标题
+ * 标题生成系统提示
+ * 用于生成对话标题的系统提示
  */
-export const TITLE_GENERATION_PROMPT = '请根据以下对话内容生成一个简短的标题（不超过20个字）。标题应该概括对话的主要内容。必须使用 function call 格式设置标题。';
+export const TITLE_GENERATION_SYSTEM_PROMPT = `你是一个专门用于生成对话标题的助手。你的任务是根据用户提供的对话历史生成一个简短的标题。
+
+请遵循以下规则：
+1. 将用户发送的消息内容视为提供对话历史
+2. 只返回标题文本，不要包含任何其他内容
+3. 不要解释你的选择，只需返回标题文本
+4. 不要使用引号或其他标点符号包裹标题
+5. 标题不超过20个字
+6. 标题应该概括对话的主要内容`;

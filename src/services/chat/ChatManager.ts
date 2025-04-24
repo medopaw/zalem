@@ -1,7 +1,7 @@
 import { ChatMessage, ChatHistoryMessage } from '../../types/chat';
 import { MessageParser } from '../MessageParser';
 import { getChatService } from '../ChatService';
-import { SYSTEM_PROMPT, TITLE_GENERATION_PROMPT } from '../../constants/prompts';
+import { SYSTEM_PROMPT } from '../../constants/prompts';
 import type { MessageContext } from '../../types/messages';
 import type { ThreadUpdatedEventDetail } from '../../types/events';
 import { DEFAULT_THREAD_TITLE } from '../../constants/chat';
@@ -150,19 +150,13 @@ export class ChatManager {
       const userMessage = await this.saveMessage(content, 'user');
       const newMessages = [userMessage];
 
-      // Check if we should generate a title
-      let extraSystemPrompt: string | undefined = undefined;
-      if (!this.titleGenerated && this.messages.length >= MESSAGES_FOR_TITLE) {
-        this.titleGenerated = true;
-        extraSystemPrompt = TITLE_GENERATION_PROMPT;
-      }
       // Get chat history for context
-      const chatHistory = this.prepareChatHistory(content, extraSystemPrompt);
+      const chatHistory = this.prepareChatHistory(content);
 
       // Get AI response
       const chatService = getChatService();
       const assistantMessage = await chatService.sendMessage(chatHistory);
-      console.log('AI Response:', assistantMessage);
+      // console.log('AI Response:', assistantMessage);
 
       // Create message context
       const context: MessageContext = {
@@ -200,6 +194,13 @@ export class ChatManager {
 
       // Broadcast thread update
       await this.broadcastThreadUpdate();
+
+      // Check if we should generate a title
+      if (!this.titleGenerated && this.messages.length >= MESSAGES_FOR_TITLE) {
+        this.titleGenerated = true;
+        // Don't wait for title generation
+        this.generateAndSetThreadTitle();
+      }
 
       return newMessages;
     } catch (error) {
@@ -241,7 +242,7 @@ export class ChatManager {
     return this.messageRepository.saveMessage(content, role, this.userId, threadId);
   }
 
-  private prepareChatHistory(content: string, extraSystemPrompt?: string): ChatHistoryMessage[] {
+  private prepareChatHistory(content: string): ChatHistoryMessage[] {
     const history = this.messages
       .slice(-HISTORY_LIMIT)
       .map(msg => ({
@@ -249,12 +250,7 @@ export class ChatManager {
         content: msg.content
       }));
 
-    return extraSystemPrompt ? [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...history,
-      { role: 'system', content: extraSystemPrompt },
-      { role: 'user', content }
-    ] : [
+    return [
       { role: 'system', content: SYSTEM_PROMPT },
       ...history,
       { role: 'user', content }
@@ -290,6 +286,44 @@ export class ChatManager {
       window.dispatchEvent(event);
     } catch (error) {
       console.error('Error broadcasting thread update:', error);
+    }
+  }
+
+  /**
+   * 生成并设置对话标题
+   * @returns 生成的标题
+   */
+  private async generateAndSetThreadTitle(): Promise<string> {
+    try {
+      // 准备对话内容作为标题生成的输入
+      const historyForTitle = this.messages
+        .slice(0, MESSAGES_FOR_TITLE)
+        .map(msg => `${msg.role === 'user' ? '用户' : '助手'}: ${msg.content}`)
+        .join('\n');
+
+      // 使用 AI 生成标题
+      const chatService = getChatService();
+      const title = await chatService.generateTitle(historyForTitle);
+
+      // 更新数据库中的标题
+      const threadId = this.pendingThreadId || this.threadId;
+      const { thread, error } = await this.threadRepository.updateThreadTitle(threadId, title);
+
+      if (error) {
+        console.error('Error updating thread title:', error);
+        return DEFAULT_THREAD_TITLE;
+      }
+
+      // 更新内存中的标题
+      this.threadTitle = thread?.title || DEFAULT_THREAD_TITLE;
+
+      // 广播线程更新
+      await this.broadcastThreadUpdate();
+
+      return this.threadTitle;
+    } catch (error) {
+      console.error('Error generating thread title:', error);
+      return DEFAULT_THREAD_TITLE;
     }
   }
 

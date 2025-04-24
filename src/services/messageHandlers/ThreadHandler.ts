@@ -3,6 +3,10 @@ import type { MessageContext, ChatMessage } from '../../types/messages';
 import type { ThreadUpdatedEventDetail } from '../../types/events';
 import type { LLMMessage } from '../../types/chat';
 
+/**
+ * @deprecated 此处理器已被弃用，但为了向后兼容而保留。
+ * 新的标题生成机制使用 AIService.generateTitle 方法。
+ */
 export class ThreadHandler extends BaseHandler {
   canHandle(message: LLMMessage): boolean {
     if (!message.tool_calls || message.tool_calls.length === 0) return false;
