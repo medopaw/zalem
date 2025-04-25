@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { checkSupabaseConnection } from '../utils/supabaseUtils';
 import type { ThreadUpdatedEventDetail } from '../types/events';
 import type { Thread } from '../types/threads';
+import { SupabaseThreadRepository } from '../repositories/SupabaseThreadRepository';
+import { PregeneratedMessageService } from '../services/PregeneratedMessageService';
 
 export function useThreads() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -11,6 +13,7 @@ export function useThreads() {
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCreatingThread, setIsCreatingThread] = useState<boolean>(false);
 
   // Listen for thread updates
   useEffect(() => {
@@ -85,16 +88,60 @@ export function useThreads() {
 
   const createThread = async () => {
     try {
-      const { data, error } = await supabase.rpc('create_chat_thread');
+      // 设置加载状态
+      setIsCreatingThread(true);
+      setError(null);
 
-      if (error) throw error;
+      // 创建线程存储库实例
+      const threadRepository = new SupabaseThreadRepository(supabase);
 
-      await loadThreads();
-      return data;
+      // 获取当前用户ID
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      try {
+        // 创建预生成消息服务
+        const messageService = new PregeneratedMessageService(supabase);
+
+        // 检查是否有可用的预生成消息
+        const hasMessages = await messageService.hasAvailableMessages(userId);
+
+        // 如果没有预生成消息，则先生成一个
+        if (!hasMessages) {
+          console.log('No pregenerated messages available, generating one first');
+          const success = await messageService.generateMessageForUser(userId);
+          if (!success) {
+            console.error('Failed to generate message, falling back to regular thread creation');
+            const fallbackThreadId = await threadRepository.createChatThread();
+            await loadThreads();
+            return fallbackThreadId;
+          }
+        }
+
+        // 使用预生成消息创建新对话
+        console.log('Creating thread with pregenerated messages');
+        const newThreadId = await threadRepository.createThreadWithPregenerated(userId);
+        await loadThreads();
+        return newThreadId;
+      } catch (pregeneratedError) {
+        console.error('Error creating thread with pregenerated messages:', pregeneratedError);
+        // 如果预生成消息创建失败，回退到普通创建方式
+        console.log('Falling back to regular thread creation');
+        const fallbackThreadId = await threadRepository.createChatThread();
+        await loadThreads();
+        return fallbackThreadId;
+      }
     } catch (error) {
       console.error('Error creating thread:', error);
       setError('Failed to create new thread');
       throw error;
+    } finally {
+      // 无论成功还是失败，都重置加载状态
+      setIsCreatingThread(false);
     }
   };
 
@@ -136,6 +183,7 @@ export function useThreads() {
     currentThreadId,
     error,
     loading,
+    isCreatingThread,
     createThread: handleCreateThread,
     selectThread: handleSelectThread,
     loadThreads

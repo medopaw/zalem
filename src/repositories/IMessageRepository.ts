@@ -11,22 +11,24 @@ export interface IMessageRepository {
    * @returns 消息数组和可能的错误
    */
   getMessages(threadId: string): Promise<{ messages: ChatMessage[], error: string | null }>;
-  
+
   /**
    * 保存新消息
    * @param content 消息内容
    * @param role 消息角色（用户或助手）
    * @param userId 用户ID
    * @param threadId 线程ID
+   * @param isVisible 消息是否可见，默认为可见
    * @returns 保存的消息
    */
   saveMessage(
-    content: string, 
-    role: 'user' | 'assistant', 
-    userId: string, 
-    threadId: string
+    content: string,
+    role: 'user' | 'assistant',
+    userId: string,
+    threadId: string,
+    isVisible?: boolean
   ): Promise<ChatMessage>;
-  
+
   /**
    * 创建欢迎消息
    * @param userId 用户ID
@@ -34,7 +36,7 @@ export interface IMessageRepository {
    * @returns 创建的欢迎消息或null
    */
   createWelcomeMessage(userId: string, threadId: string): Promise<ChatMessage | null>;
-  
+
   /**
    * 清除指定线程的所有消息
    * @param threadId 线程ID

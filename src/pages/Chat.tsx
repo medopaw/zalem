@@ -21,7 +21,6 @@ function Chat() {
     error: null
   });
   const [shouldFocus, setShouldFocus] = useState(false);
-  const [isCreatingThread, setIsCreatingThread] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -30,6 +29,7 @@ function Chat() {
     currentThreadId,
     loading: threadsLoading,
     error: threadError,
+    isCreatingThread,
     createThread,
     selectThread
   } = useThreads();
@@ -80,8 +80,6 @@ function Chat() {
 
   const handleCreateThread = async () => {
     try {
-      // 显示加载状态
-      setIsCreatingThread(true);
       console.log('Creating new thread...');
 
       // 创建新线程
@@ -102,8 +100,6 @@ function Chat() {
       }
     } catch (error) {
       console.error('Failed to create thread:', error);
-    } finally {
-      setIsCreatingThread(false);
     }
   };
   const handleSelectThread = async (threadId: string) => {

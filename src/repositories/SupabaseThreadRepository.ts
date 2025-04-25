@@ -112,4 +112,54 @@ export class SupabaseThreadRepository implements IThreadRepository {
     const { checkSupabaseConnection } = await import('../utils/supabaseUtils');
     return checkSupabaseConnection(this.supabase, 'chat_threads');
   }
+
+  /**
+   * 创建新对话并应用预生成的消息
+   * @param userId 用户ID
+   * @returns 新对话的ID
+   */
+  async createThreadWithPregenerated(userId: string): Promise<string> {
+    try {
+      console.log(`Creating new thread with pregenerated messages for user ${userId}`);
+      
+      // 使用存储过程创建新对话
+      const { data, error } = await this.supabase.rpc('create_thread_with_pregenerated', {
+        p_user_id: userId
+      });
+      
+      if (error) {
+        console.error('Error creating thread with pregenerated messages:', error);
+        throw error;
+      }
+      
+      console.log(`Thread created with ID: ${data}`);
+      return data;
+    } catch (error) {
+      console.error('Failed to create thread with pregenerated messages:', error);
+      throw new Error('Failed to create new thread');
+    }
+  }
+
+  /**
+   * 创建新对话
+   * @returns 新对话的ID
+   */
+  async createChatThread(): Promise<string> {
+    try {
+      console.log('Creating new thread');
+      
+      const { data, error } = await this.supabase.rpc('create_chat_thread');
+      
+      if (error) {
+        console.error('Error creating thread:', error);
+        throw error;
+      }
+      
+      console.log(`Thread created with ID: ${data}`);
+      return data;
+    } catch (error) {
+      console.error('Failed to create thread:', error);
+      throw new Error('Failed to create new thread');
+    }
+  }
 }

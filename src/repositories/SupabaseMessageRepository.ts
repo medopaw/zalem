@@ -21,6 +21,7 @@ export class SupabaseMessageRepository implements IMessageRepository {
         .from('chat_messages')
         .select('*')
         .eq('thread_id', threadId)
+        .eq('is_visible', true) // 只加载可见消息
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -36,12 +37,19 @@ export class SupabaseMessageRepository implements IMessageRepository {
 
   /**
    * 保存新消息
+   * @param content 消息内容
+   * @param role 消息角色
+   * @param userId 用户ID
+   * @param threadId 线程ID
+   * @param isVisible 消息是否可见，默认为可见
+   * @returns 保存的消息
    */
   async saveMessage(
     content: string,
     role: 'user' | 'assistant',
     userId: string,
-    threadId: string
+    threadId: string,
+    isVisible: boolean = true
   ): Promise<ChatMessage> {
     const { data, error } = await this.supabase
       .from('chat_messages')
@@ -49,7 +57,8 @@ export class SupabaseMessageRepository implements IMessageRepository {
         content,
         role,
         user_id: userId,
-        thread_id: threadId
+        thread_id: threadId,
+        is_visible: isVisible
       }])
       .select()
       .single();

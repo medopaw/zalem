@@ -1,12 +1,15 @@
 import { BaseHandler } from './BaseHandler';
 import type { MessageContext, ChatMessage, LLMMessage } from '../../types/messages';
+import { SupabasePregeneratedMessageRepository } from '../../repositories/SupabasePregeneratedMessageRepository';
+import { IPregeneratedMessageRepository } from '../../repositories/IPregeneratedMessageRepository';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Handles nickname-related functions
  */
 export class NicknameHandler extends BaseHandler {
   canHandle(message: LLMMessage): boolean {
-    return message.tool_calls?.some(call => 
+    return message.tool_calls?.some(call =>
       ['set_nickname', 'clear_nickname'].includes(call.function.name)
     ) || false;
   }
@@ -61,12 +64,16 @@ export class NicknameHandler extends BaseHandler {
     context: MessageContext,
     messages: ChatMessage[]
   ): Promise<void> {
+    // 更新用户昵称
     const { error } = await context.supabase
       .from('users')
       .update({ nickname: params.nickname })
       .eq('id', context.userId);
 
     if (error) throw error;
+
+    // 清除用户的预生成消息，因为昵称已更改
+    await this.clearPregeneratedMessages(context.userId, context.supabase);
 
     messages.push(await this.saveMessage(
       JSON.stringify({
@@ -90,6 +97,9 @@ export class NicknameHandler extends BaseHandler {
 
     if (error) throw error;
 
+    // 清除用户的预生成消息，因为昵称已清除
+    await this.clearPregeneratedMessages(context.userId, context.supabase);
+
     messages.push(await this.saveMessage(
       JSON.stringify({
         type: 'execution_result',
@@ -99,5 +109,26 @@ export class NicknameHandler extends BaseHandler {
       'assistant',
       context
     ));
+  }
+
+  /**
+   * 清除用户的预生成消息
+   * @param userId 用户ID
+   * @param supabase Supabase客户端
+   */
+  private async clearPregeneratedMessages(userId: string, supabase: SupabaseClient): Promise<void> {
+    try {
+      // 创建预生成消息存储库
+      const repository: IPregeneratedMessageRepository = new SupabasePregeneratedMessageRepository(supabase);
+
+      // 清除未使用的预生成消息
+      const success = await repository.clearUnusedMessages(userId);
+
+      if (!success) {
+        console.error(`清除用户 ${userId} 的预生成消息失败`);
+      }
+    } catch (error) {
+      console.error('清除预生成消息时出错:', error);
+    }
   }
 }

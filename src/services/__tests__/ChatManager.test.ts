@@ -147,6 +147,14 @@ class MockThreadRepository implements IThreadRepository {
   async checkConnection(): Promise<boolean> {
     return true;
   }
+
+  async createThreadWithPregenerated(_userId: string): Promise<string> {
+    return 'test-thread-id';
+  }
+
+  async createChatThread(): Promise<string> {
+    return 'test-thread-id';
+  }
 }
 
 describe('ChatManager', () => {

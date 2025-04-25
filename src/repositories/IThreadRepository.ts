@@ -40,4 +40,17 @@ export interface IThreadRepository {
    * @returns 是否连接成功
    */
   checkConnection(): Promise<boolean>;
+
+  /**
+   * 创建新对话并应用预生成的消息
+   * @param userId 用户ID
+   * @returns 新对话的ID
+   */
+  createThreadWithPregenerated(userId: string): Promise<string>;
+
+  /**
+   * 创建新对话
+   * @returns 新对话的ID
+   */
+  createChatThread(): Promise<string>;
 }
