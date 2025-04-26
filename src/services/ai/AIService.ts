@@ -31,13 +31,13 @@ const DEFAULT_CONFIG: Required<ChatServiceConfig> = {
 const AVAILABLE_FUNCTIONS = [
   {
     name: 'request_data',
-    description: '请求用户数据',
+    description: '请求用户数据。当你判断需要知道用户的一项或几项信息以进行更好地回复时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {
         fields: {
           type: 'array',
-          description: '需要获取的数据字段列表',
+          description: '需要获取的数据字段列表。包括昵称、角色、创建日期、任务列表和工作量。其中角色是指是否是管理员。',
           items: {
             type: 'string',
             enum: ['nickname', 'role', 'created_at', 'tasks', 'workload']
@@ -49,7 +49,7 @@ const AVAILABLE_FUNCTIONS = [
   },
   {
     name: 'create_task',
-    description: '创建新任务',
+    description: '创建新任务。当你判断需要创建一个新任务时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {
@@ -89,7 +89,7 @@ const AVAILABLE_FUNCTIONS = [
   },
   {
     name: 'update_task',
-    description: '更新任务信息',
+    description: '更新任务信息。当你需要更新任务的详细信息时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {
@@ -126,7 +126,7 @@ const AVAILABLE_FUNCTIONS = [
   },
   {
     name: 'add_task_assignee',
-    description: '添加任务协作者',
+    description: '添加任务协作者。当你需要将用户添加为任务的协作者时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {
@@ -149,7 +149,7 @@ const AVAILABLE_FUNCTIONS = [
   },
   {
     name: 'update_task_workload',
-    description: '更新任务工作量',
+    description: '更新任务工作量。当你需要更新任务的工作量时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {
@@ -171,7 +171,7 @@ const AVAILABLE_FUNCTIONS = [
   },
   {
     name: 'update_task_schedule',
-    description: '更新任务计划',
+    description: '更新任务计划。当你需要更新任务的计划时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {
@@ -202,7 +202,7 @@ const AVAILABLE_FUNCTIONS = [
   },
   {
     name: 'set_nickname',
-    description: '设置用户的昵称',
+    description: '设置用户的昵称。当用户说希望你用某个名字来称呼他时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {
@@ -216,7 +216,7 @@ const AVAILABLE_FUNCTIONS = [
   },
   {
     name: 'clear_nickname',
-    description: '清除用户的昵称',
+    description: '清除用户的昵称。当你需要清除用户的昵称时，请调用本方法',
     parameters: {
       type: 'object',
       properties: {}
