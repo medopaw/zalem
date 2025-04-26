@@ -1,13 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChatMessage } from '../types/chat';
-
-interface MultiPartMessage {
-  type: 'multi_part';
-  parts: Array<{
-    type: string;
-    [key: string]: any;
-  }>;
-}
 
 interface MessageContentProps {
   message: ChatMessage;
