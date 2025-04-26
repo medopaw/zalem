@@ -6,11 +6,12 @@ import { ChatMessage } from '../types/chat';
  */
 export interface IMessageRepository {
   /**
-   * 获取指定线程的所有消息
+   * 获取指定线程的消息
    * @param threadId 线程ID
+   * @param includeHidden 是否包含隐藏消息，默认不包含
    * @returns 消息数组和可能的错误
    */
-  getMessages(threadId: string): Promise<{ messages: ChatMessage[], error: string | null }>;
+  getMessages(threadId: string, includeHidden?: boolean): Promise<{ messages: ChatMessage[], error: string | null }>;
 
   /**
    * 保存新消息

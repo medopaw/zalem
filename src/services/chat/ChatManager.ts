@@ -1,4 +1,5 @@
 import { ChatMessage, ChatHistoryMessage } from '../../types/chat';
+import { MessageRole } from '../../types/messageTypes';
 import { MessageParser } from '../MessageParser';
 import { getChatService } from '../ChatService';
 import { SYSTEM_PROMPT } from '../../constants/prompts';
@@ -146,12 +147,19 @@ export class ChatManager {
     this.pendingThreadId = this.threadId;
 
     try {
-      // Save the real user message first
+      // 先获取消息历史，再保存用户消息，避免重复
+      // Get chat history for context (including hidden messages)
+      const baseHistory = await this.prepareChatHistory(true);
+
+      // Save the real user message after getting history
       const userMessage = await this.saveMessage(content, 'user');
       const newMessages = [userMessage];
 
-      // Get chat history for context
-      const chatHistory = this.prepareChatHistory(content);
+      // 手动添加当前用户消息
+      const chatHistory: ChatHistoryMessage[] = [
+        ...baseHistory,
+        { role: 'user' as MessageRole, content }
+      ];
 
       // Get AI response
       const chatService = getChatService();
@@ -162,7 +170,7 @@ export class ChatManager {
       const context: MessageContext = {
         userId: this.userId,
         supabase, // 暂时保留，后续版本将移除对 supabase 的直接依赖
-        chatHistory,
+        chatHistory, // 使用包含隐藏消息的完整消息历史
         chatService,
         threadId: this.pendingThreadId
       };
@@ -242,18 +250,26 @@ export class ChatManager {
     return this.messageRepository.saveMessage(content, role, this.userId, threadId);
   }
 
-  private prepareChatHistory(content: string): ChatHistoryMessage[] {
-    const history = this.messages
+  /**
+   * 准备发送给大模型的基础消息历史（不包含当前用户消息）
+   * @param includeHidden 是否包含隐藏消息，默认为 true
+   * @returns 格式化的消息历史
+   */
+  private async prepareChatHistory(includeHidden: boolean = true): Promise<ChatHistoryMessage[]> {
+    // 获取消息历史，包含隐藏消息
+    const { messages } = await this.messageRepository.getMessages(this.threadId, includeHidden);
+
+    const history = messages
       .slice(-HISTORY_LIMIT)
       .map(msg => ({
-        role: msg.role,
+        role: msg.role as MessageRole,
         content: msg.content
       }));
 
+    // 注意：这里不再添加当前用户消息，因为它将在 sendMessage 方法中手动添加
     return [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...history,
-      { role: 'user', content }
+      { role: 'system' as MessageRole, content: SYSTEM_PROMPT },
+      ...history
     ];
   }
 
@@ -296,7 +312,9 @@ export class ChatManager {
   private async generateAndSetThreadTitle(): Promise<string> {
     try {
       // 准备对话内容作为标题生成的输入
-      const historyForTitle = this.messages
+      // 只使用可见消息生成标题
+      const { messages: visibleMessages } = await this.messageRepository.getMessages(this.threadId, false);
+      const historyForTitle = visibleMessages
         .slice(0, MESSAGES_FOR_TITLE)
         .map(msg => `${msg.role === 'user' ? '用户' : '助手'}: ${msg.content}`)
         .join('\n');

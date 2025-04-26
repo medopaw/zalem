@@ -13,16 +13,25 @@ export class SupabaseMessageRepository implements IMessageRepository {
   }
 
   /**
-   * 获取指定线程的所有消息
+   * 获取指定线程的消息
+   * @param threadId 线程ID
+   * @param includeHidden 是否包含隐藏消息，默认不包含
    */
-  async getMessages(threadId: string): Promise<{ messages: ChatMessage[], error: string | null }> {
+  async getMessages(threadId: string, includeHidden: boolean = false): Promise<{ messages: ChatMessage[], error: string | null }> {
     try {
-      const { data, error } = await this.supabase
+      // 创建查询构建器
+      let query = this.supabase
         .from('chat_messages')
         .select('*')
-        .eq('thread_id', threadId)
-        .eq('is_visible', true) // 只加载可见消息
-        .order('created_at', { ascending: true });
+        .eq('thread_id', threadId);
+
+      // 如果不包含隐藏消息，添加可见性过滤条件
+      if (!includeHidden) {
+        query = query.eq('is_visible', true);
+      }
+
+      // 执行查询
+      const { data, error } = await query.order('created_at', { ascending: true });
 
       if (error) {
         return { messages: [], error: `Failed to load messages.\nError: ${error}` };

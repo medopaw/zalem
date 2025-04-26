@@ -101,6 +101,8 @@ class BackgroundTaskManager {
 创建一个专门用于预生成消息的任务：
 
 ```typescript
+import { WELCOME_MESSAGE_SYSTEM_PROMPT } from '../constants/prompts';
+
 class PregenerateMessagesTask {
   private static readonly TASK_ID = 'pregenerate-messages';
   private static readonly MIN_MESSAGES_PER_USER = 3; // 每个用户至少保持的预生成消息数量
@@ -194,9 +196,8 @@ class PregenerateMessagesTask {
 
   private async getAIResponse(hiddenMessage: string, nickname?: string): Promise<string> {
     const chatService = getChatService();
-    const systemPrompt = `你是一个友好的AI助手。用户刚刚开始了一个新的对话。
-请用简短友好的方式问候用户${nickname ? `（昵称：${nickname}）` : ''}，询问最近在忙什么或者当前状态。
-你的回复应该自然，不要超过2-3句话，不要看起来像是在回答问题。`;
+    // 使用常量中定义的系统提示
+    const systemPrompt = WELCOME_MESSAGE_SYSTEM_PROMPT.replace('{nickname}', nickname ? `（昵称：${nickname}）` : '');
 
     // 使用封装好的sendSingleMessage方法
     const response = await chatService.sendSingleMessage(systemPrompt, hiddenMessage);

@@ -82,7 +82,7 @@ vi.mock('../../constants/prompts', () => ({
 
 // 创建模拟存储库
 class MockMessageRepository implements IMessageRepository {
-  async getMessages(_threadId: string): Promise<{ messages: ChatMessage[], error: string | null }> {
+  async getMessages(_threadId: string, _includeHidden: boolean = false): Promise<{ messages: ChatMessage[], error: string | null }> {
     return { messages: [], error: null };
   }
 
@@ -234,10 +234,12 @@ describe('ChatManager', () => {
         error: null
       });
 
-      // 模拟消息存储库返回消息列表
-      vi.mocked(mockMessageRepository.getMessages).mockResolvedValueOnce({
-        messages: mockMessages,
-        error: null
+      // 模拟消息存储库返回消息列表（无论是否包含隐藏消息）
+      vi.mocked(mockMessageRepository.getMessages).mockImplementation((_threadId, _includeHidden) => {
+        return Promise.resolve({
+          messages: mockMessages,
+          error: null
+        });
       });
 
       const result = await chatManager.loadMessages();
@@ -255,10 +257,12 @@ describe('ChatManager', () => {
         error: null
       });
 
-      // 模拟消息存储库返回空消息列表
-      vi.mocked(mockMessageRepository.getMessages).mockResolvedValueOnce({
-        messages: [],
-        error: null
+      // 模拟消息存储库返回空消息列表（无论是否包含隐藏消息）
+      vi.mocked(mockMessageRepository.getMessages).mockImplementation((_threadId, _includeHidden) => {
+        return Promise.resolve({
+          messages: [],
+          error: null
+        });
       });
 
       // 模拟创建欢迎消息
@@ -302,10 +306,12 @@ describe('ChatManager', () => {
         error: null
       });
 
-      // 模拟消息存储库返回错误
-      vi.mocked(mockMessageRepository.getMessages).mockResolvedValueOnce({
-        messages: [],
-        error: 'Failed to load messages'
+      // 模拟消息存储库返回错误（无论是否包含隐藏消息）
+      vi.mocked(mockMessageRepository.getMessages).mockImplementation((_threadId, _includeHidden) => {
+        return Promise.resolve({
+          messages: [],
+          error: 'Failed to load messages'
+        });
       });
 
       const result = await chatManager.loadMessages();
