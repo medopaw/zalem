@@ -73,7 +73,8 @@ export class TaskHandler extends BaseHandler {
         call.function.name,
         JSON.parse(call.function.arguments),
         context,
-        messages
+        messages,
+        call.id
       );
     }
 
@@ -84,7 +85,8 @@ export class TaskHandler extends BaseHandler {
     functionName: string,
     parameters: any,
     context: MessageContext,
-    messages: ChatMessage[]
+    messages: ChatMessage[],
+    toolCallId: string
   ): Promise<void> {
     try {
       switch (functionName) {
@@ -110,7 +112,8 @@ export class TaskHandler extends BaseHandler {
       // Add success message with specific message
       messages.push(await this.saveMessage(
         JSON.stringify({
-          type: 'execution_result',
+          type: 'tool_result',
+          tool_call_id: toolCallId,
           status: 'success',
           message: this.getSuccessMessage(functionName)
         }),
@@ -123,7 +126,8 @@ export class TaskHandler extends BaseHandler {
       // Save error message
       messages.push(await this.saveMessage(
         JSON.stringify({
-          type: 'execution_result',
+          type: 'tool_result',
+          tool_call_id: toolCallId,
           status: 'error',
           message: error instanceof Error ? error.message : '操作失败',
           details: error instanceof Error ? error.stack : undefined

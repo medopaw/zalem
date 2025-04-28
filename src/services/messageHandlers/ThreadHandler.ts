@@ -74,7 +74,8 @@ export class ThreadHandler extends BaseHandler {
     // Save success message
     messages.push(await this.saveMessage(
       JSON.stringify({
-        type: 'execution_result',
+        type: 'tool_result',
+        tool_call_id: threadTitleCall.id,
         status: 'success',
         message: `已将会话标题设置为"${title}"`
       }),

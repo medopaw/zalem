@@ -58,13 +58,14 @@ export interface ToolCallContent {
 
 /**
  * 工具调用结果内容
+ * 用于显示工具调用的执行状态，使用系统样式居中显示
  */
 export interface ToolResultContent {
   type: 'tool_result';
   tool_call_id: string;
   status: 'success' | 'error';
   message: string;
-  data?: unknown;
+  details?: unknown; // 可选的额外详情，如错误堆栈
 }
 
 /**
@@ -77,6 +78,7 @@ export interface DataRequestContent {
 
 /**
  * 数据响应内容
+ * 用于显示数据请求的返回结果，靠左显示，可折叠查看详情
  */
 export interface DataResponseContent {
   type: 'data_response';

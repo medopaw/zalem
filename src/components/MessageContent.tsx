@@ -77,28 +77,21 @@ function MessageContent({ message }: MessageContentProps) {
     );
   };
 
-  // 渲染工具调用结果
+  // 渲染工具调用结果 - 系统样式居中显示
   const renderToolResult = (content: ToolResultContent) => {
     const isSuccess = content.status === 'success';
+
     return (
-      <div className="flex flex-col">
-        <div
-          onClick={() => setIsExpanded(!isExpanded)}
-          className={`inline-flex items-center gap-2 px-2.5 py-1 ${
-            isSuccess
-              ? 'bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600'
-              : 'bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600'
-          } text-white rounded cursor-pointer transition-all text-xs font-medium shadow-sm`}
-        >
-          <span>{isSuccess ? '执行成功' : '执行失败'}</span>
+      <div className="flex justify-center my-2">
+        <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+          ${isSuccess
+            ? 'bg-gray-100 text-gray-600'
+            : 'bg-red-50 text-red-600'}`}>
+          {isSuccess
+            ? <span className="w-4 h-4 mr-1">✓</span>
+            : <span className="w-4 h-4 mr-1">✗</span>}
+          <span>{content.message}</span>
         </div>
-        {isExpanded && (
-          <div className={`mt-1 p-2 rounded text-xs font-mono ${
-            isSuccess ? 'bg-teal-50 text-teal-700' : 'bg-rose-50 text-rose-700'
-          }`}>
-            {content.message}
-          </div>
-        )}
       </div>
     );
   };

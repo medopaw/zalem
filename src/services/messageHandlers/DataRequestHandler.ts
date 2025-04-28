@@ -6,7 +6,7 @@ import type { MessageContext, ChatMessage, LLMMessage } from '../../types/messag
  */
 export class DataRequestHandler extends BaseHandler {
   canHandle(message: LLMMessage): boolean {
-    return message.tool_calls?.some(call => 
+    return message.tool_calls?.some(call =>
       call.function.name === 'request_data'
     ) || false;
   }
@@ -20,7 +20,7 @@ export class DataRequestHandler extends BaseHandler {
     }
 
     // Find the request_data tool call
-    const requestCall = message.tool_calls?.find(call => 
+    const requestCall = message.tool_calls?.find(call =>
       call.function.name === 'request_data'
     );
 
@@ -89,12 +89,10 @@ export class DataRequestHandler extends BaseHandler {
         responseData.workload = 0;
       }
 
-      // Save success response
+      // Save success response - use data_response type
       messages.push(await this.saveMessage(
         JSON.stringify({
-          type: 'execution_result',
-          status: 'success',
-          message: '数据获取成功',
+          type: 'data_response',
           data: responseData
         }),
         'assistant',
@@ -103,10 +101,11 @@ export class DataRequestHandler extends BaseHandler {
 
     } catch (error) {
       console.error('Error fetching data:', error);
-      // Save error message
+      // Save error message - use tool_result type for errors
       messages.push(await this.saveMessage(
         JSON.stringify({
-          type: 'execution_result',
+          type: 'tool_result',
+          tool_call_id: requestCall.id,
           status: 'error',
           message: error instanceof Error ? error.message : '获取数据失败'
         }),

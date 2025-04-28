@@ -45,7 +45,8 @@ export class NicknameHandler extends BaseHandler {
         console.error('Error handling nickname operation:', error);
         messages.push(await this.saveMessage(
           JSON.stringify({
-            type: 'execution_result',
+            type: 'tool_result',
+            tool_call_id: call.id,
             status: 'error',
             message: error instanceof Error ? error.message : '操作失败'
           }),
@@ -77,7 +78,8 @@ export class NicknameHandler extends BaseHandler {
 
     messages.push(await this.saveMessage(
       JSON.stringify({
-        type: 'execution_result',
+        type: 'tool_result',
+        tool_call_id: 'set_nickname', // 注意：这里没有真正的tool_call_id，使用函数名代替
         status: 'success',
         message: `昵称已设置为 ${params.nickname}`
       }),
@@ -102,7 +104,8 @@ export class NicknameHandler extends BaseHandler {
 
     messages.push(await this.saveMessage(
       JSON.stringify({
-        type: 'execution_result',
+        type: 'tool_result',
+        tool_call_id: 'clear_nickname', // 注意：这里没有真正的tool_call_id，使用函数名代替
         status: 'success',
         message: '昵称已清除'
       }),
