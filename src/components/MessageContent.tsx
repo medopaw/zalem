@@ -1,12 +1,20 @@
 import { useState } from 'react';
+import { DisplayMessage } from '../types/messageStructures';
 import {
-  DisplayMessage,
+  MessageContent as MessageContentType,
+  BaseMessageContent,
   ToolCallContent,
+  ToolCallsContent,
   ToolResultContent,
   DataRequestContent,
   DataResponseContent,
-  MessageContent as MessageContentType
-} from '../types/messageStructures';
+  isTextMessageContent,
+  isToolCallContent,
+  isToolCallsContent,
+  isToolResultContent,
+  isDataRequestContent,
+  isDataResponseContent
+} from '../types/messageContentTypes';
 
 interface MessageContentProps {
   message: DisplayMessage;
@@ -14,6 +22,19 @@ interface MessageContentProps {
 
 function MessageContent({ message }: MessageContentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // 调试日志，查看消息内容
+  console.log('Rendering message:', {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    contentType: typeof message.content === 'object' ? message.content.type : 'string'
+  });
+
+  // 如果是对象，打印完整内容
+  if (typeof message.content === 'object') {
+    console.log('Message content details:', JSON.stringify(message.content, null, 2));
+  }
 
   // 渲染数据请求
   const renderDataRequest = (content: DataRequestContent) => {
@@ -62,7 +83,7 @@ function MessageContent({ message }: MessageContentProps) {
           className="inline-flex items-center gap-2 px-2.5 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded cursor-pointer hover:from-blue-600 hover:to-cyan-600 transition-all text-xs font-medium shadow-sm"
         >
           <span>执行功能: {content.name}</span>
-          {content.name === 'setNickname' && (
+          {(content.name === 'setNickname' || content.name === 'set_nickname') && (
             <span className="text-blue-100 text-xs">
               ({String(content.parameters.nickname)})
             </span>
@@ -111,6 +132,34 @@ function MessageContent({ message }: MessageContentProps) {
     );
   };
 
+  // 渲染多个工具调用
+  const renderToolCalls = (content: ToolCallsContent) => {
+    return (
+      <div className="flex flex-col space-y-2">
+        {content.calls.map((call) => (
+          <div key={call.id} className="flex flex-col">
+            <div
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="inline-flex items-center gap-2 px-2.5 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded cursor-pointer hover:from-blue-600 hover:to-cyan-600 transition-all text-xs font-medium shadow-sm"
+            >
+              <span>执行功能: {call.name}</span>
+              {(call.name === 'set_nickname' || call.name === 'setNickname') && (
+                <span className="text-blue-100 text-xs">
+                  ({String(call.parameters.nickname)})
+                </span>
+              )}
+            </div>
+            {isExpanded && (
+              <div className="mt-1 p-2 bg-blue-50 rounded text-xs font-mono text-blue-700">
+                {JSON.stringify(call.parameters, null, 2)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   // 根据内容类型渲染不同的组件
   const renderContent = (content: MessageContentType): JSX.Element | null => {
     // 如果是字符串，直接渲染文本
@@ -118,18 +167,41 @@ function MessageContent({ message }: MessageContentProps) {
       return renderTextContent(content);
     }
 
-    // 根据内容类型渲染不同的组件
-    switch (content.type) {
-      case 'data_request':
-        return renderDataRequest(content as DataRequestContent);
-      case 'data_response':
-        return renderDataResponse(content as DataResponseContent);
-      case 'tool_call':
-        return renderToolCall(content as ToolCallContent);
-      case 'tool_result':
-        return renderToolResult(content as ToolResultContent);
-      default:
-        return null;
+    console.log('Rendering object content with type:', content.type);
+
+    // 使用类型守卫函数进行类型检查
+    if (isDataRequestContent(content)) {
+      return renderDataRequest(content);
+    } else if (isDataResponseContent(content)) {
+      return renderDataResponse(content);
+    } else if (isToolCallContent(content)) {
+      console.log('Rendering tool call:', content);
+      return renderToolCall(content);
+    } else if (isToolCallsContent(content)) {
+      console.log('Rendering tool calls:', content);
+      return renderToolCalls(content);
+    } else if (isToolResultContent(content)) {
+      console.log('Rendering tool result:', content);
+      return renderToolResult(content);
+    } else if (isTextMessageContent(content)) {
+      return renderTextContent(content.text);
+    } else {
+      console.warn('Unknown message content type:', content);
+      // 尝试基于type字段进行渲染
+      if (typeof content === 'object' && 'type' in content) {
+        const contentWithType = content as BaseMessageContent;
+        if (contentWithType.type === 'tool_call') {
+          console.log('Fallback: Rendering as tool call');
+          return renderToolCall(content as ToolCallContent);
+        } else if (contentWithType.type === 'tool_result') {
+          console.log('Fallback: Rendering as tool result');
+          return renderToolResult(content as ToolResultContent);
+        } else if (contentWithType.type === 'tool_calls') {
+          console.log('Fallback: Rendering as tool calls');
+          return renderToolCalls(content as ToolCallsContent);
+        }
+      }
+      return null;
     }
   };
 

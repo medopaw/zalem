@@ -121,22 +121,122 @@ export class SupabaseThreadRepository implements IThreadRepository {
   async createThreadWithPregenerated(userId: string): Promise<string> {
     try {
       console.log(`Creating new thread with pregenerated messages for user ${userId}`);
-      
-      // 使用存储过程创建新对话
-      const { data, error } = await this.supabase.rpc('create_thread_with_pregenerated', {
-        p_user_id: userId
-      });
-      
-      if (error) {
-        console.error('Error creating thread with pregenerated messages:', error);
-        throw error;
+
+      // 尝试使用存储过程创建新对话
+      try {
+        const { data, error } = await this.supabase.rpc('create_thread_with_pregenerated', {
+          p_user_id: userId
+        });
+
+        if (error) {
+          console.error('Error creating thread with pregenerated messages using RPC:', error);
+          // 如果存储过程失败，则使用手动方式创建
+          throw error;
+        }
+
+        console.log(`Thread created with ID: ${data}`);
+        return data;
+      } catch {
+        // 如果存储过程失败，则使用手动方式创建
+        console.log('Falling back to manual thread creation with pregenerated messages');
+        return await this.manualCreateThreadWithPregenerated(userId);
       }
-      
-      console.log(`Thread created with ID: ${data}`);
-      return data;
     } catch (error) {
       console.error('Failed to create thread with pregenerated messages:', error);
       throw new Error('Failed to create new thread');
+    }
+  }
+
+  /**
+   * 手动创建新对话并应用预生成的消息
+   * 这是当存储过程失败时的备用方案
+   * @param userId 用户ID
+   * @returns 新对话的ID
+   */
+  private async manualCreateThreadWithPregenerated(userId: string): Promise<string> {
+    try {
+      // 1. 归档当前活跃对话
+      const { data: activeThreads } = await this.supabase
+        .from('chat_threads')
+        .select('id')
+        .eq('created_by', userId)
+        .eq('is_archived', false);
+
+      if (activeThreads && activeThreads.length > 0) {
+        const oldThreadId = activeThreads[0].id;
+        await this.supabase
+          .from('chat_threads')
+          .update({ is_archived: true })
+          .eq('id', oldThreadId);
+      }
+
+      // 2. 创建新对话
+      const { data: newThread, error: threadError } = await this.supabase
+        .from('chat_threads')
+        .insert([{
+          title: '新对话',
+          created_by: userId,
+          is_archived: false
+        }])
+        .select()
+        .single();
+
+      if (threadError || !newThread) {
+        throw new Error(`Failed to create new thread: ${threadError?.message}`);
+      }
+
+      const newThreadId = newThread.id;
+
+      // 3. 获取未使用的预生成消息
+      const { data: pregeneratedMessages } = await this.supabase
+        .from('pregenerated_messages')
+        .select('id, hidden_message, ai_response')
+        .eq('user_id', userId)
+        .eq('is_used', false)
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+      if (pregeneratedMessages && pregeneratedMessages.length > 0) {
+        const pregenerated = pregeneratedMessages[0];
+
+        // 4. 插入隐藏的用户消息，并设置 send_to_llm = true
+        await this.supabase
+          .from('chat_messages')
+          .insert([{
+            content: pregenerated.hidden_message,
+            role: 'user',
+            user_id: userId,
+            thread_id: newThreadId,
+            is_visible: false,
+            send_to_llm: true // 确保隐藏消息会发送给大模型
+          }]);
+
+        // 5. 插入AI响应
+        await this.supabase
+          .from('chat_messages')
+          .insert([{
+            content: pregenerated.ai_response,
+            role: 'assistant',
+            user_id: userId,
+            thread_id: newThreadId,
+            is_visible: true,
+            send_to_llm: true
+          }]);
+
+        // 6. 标记预生成消息为已使用
+        await this.supabase
+          .from('pregenerated_messages')
+          .update({
+            is_used: true,
+            used_at: new Date().toISOString()
+          })
+          .eq('id', pregenerated.id);
+      }
+
+      return newThreadId;
+    } catch (error) {
+      console.error('Error in manual thread creation:', error);
+      throw new Error('Failed to manually create thread with pregenerated messages');
     }
   }
 
@@ -147,14 +247,14 @@ export class SupabaseThreadRepository implements IThreadRepository {
   async createChatThread(): Promise<string> {
     try {
       console.log('Creating new thread');
-      
+
       const { data, error } = await this.supabase.rpc('create_chat_thread');
-      
+
       if (error) {
         console.error('Error creating thread:', error);
         throw error;
       }
-      
+
       console.log(`Thread created with ID: ${data}`);
       return data;
     } catch (error) {

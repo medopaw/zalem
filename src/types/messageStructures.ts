@@ -7,6 +7,13 @@
  * 3. 用于发送给大模型的消息结构 (LLMHistoryMessage)
  */
 
+import {
+  MessageContent,
+  isToolCallsContent
+} from './messageContentTypes';
+import { MessageType } from '../utils/MessageTypeRegistry';
+import { ChatMessage } from './chat';
+
 /**
  * 消息角色类型
  */
@@ -22,15 +29,14 @@ export type MessageVisibility = 'visible' | 'hidden' | 'internal';
 
 /**
  * 消息内容类型
- * - text: 纯文本内容
- * - tool_call: 工具调用
- * - tool_result: 工具调用结果
- * - data_request: 数据请求
- * - data_response: 数据响应
+ *
+ * @deprecated 使用 messageContentTypes.ts 中的类型定义
+ * 请使用 MessageContentTypeString 替代
  */
 export type MessageContentType =
   | 'text'
   | 'tool_call'
+  | 'tool_calls'
   | 'tool_result'
   | 'data_request'
   | 'data_response';
@@ -48,52 +54,9 @@ export interface ToolCall {
 }
 
 /**
- * 工具调用内容
+ * @deprecated 使用 messageContentTypes.ts 中的类型定义
+ * 请使用新的类型定义替代
  */
-export interface ToolCallContent {
-  type: 'tool_call';
-  name: string;
-  parameters: Record<string, unknown>;
-}
-
-/**
- * 工具调用结果内容
- * 用于显示工具调用的执行状态，使用系统样式居中显示
- */
-export interface ToolResultContent {
-  type: 'tool_result';
-  tool_call_id: string;
-  status: 'success' | 'error';
-  message: string;
-  details?: unknown; // 可选的额外详情，如错误堆栈
-}
-
-/**
- * 数据请求内容
- */
-export interface DataRequestContent {
-  type: 'data_request';
-  fields: string[];
-}
-
-/**
- * 数据响应内容
- * 用于显示数据请求的返回结果，靠左显示，可折叠查看详情
- */
-export interface DataResponseContent {
-  type: 'data_response';
-  data: Record<string, unknown>;
-}
-
-/**
- * 消息内容联合类型
- */
-export type MessageContent =
-  | string
-  | ToolCallContent
-  | ToolResultContent
-  | DataRequestContent
-  | DataResponseContent;
 
 /**
  * 1. 数据库消息结构
@@ -163,14 +126,149 @@ export interface LLMHistoryMessage {
 /**
  * 从数据库消息创建显示消息
  */
-export function toDisplayMessage(dbMessage: DatabaseMessage): DisplayMessage {
+export function toDisplayMessage(dbMessage: DatabaseMessage | ChatMessage): DisplayMessage {
   let parsedContent: MessageContent;
 
-  try {
-    // 尝试解析JSON内容
-    parsedContent = JSON.parse(dbMessage.content);
-  } catch (e) {
-    // 如果解析失败，则视为纯文本
+  console.log('Converting DB message to display message:', {
+    id: dbMessage.id,
+    role: dbMessage.role,
+    content: dbMessage.content.substring(0, 100) + (dbMessage.content.length > 100 ? '...' : '')
+  });
+
+  // 如果是tool角色或者assistant角色，尝试解析JSON内容
+  if (dbMessage.role === 'tool' || dbMessage.role === 'assistant') {
+    try {
+      // 尝试解析JSON内容
+      const parsed = JSON.parse(dbMessage.content);
+
+      console.log('Parsed content:', parsed);
+
+      // 检查是否包含type字段
+      if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+        // 根据type字段创建适当的消息内容对象
+        switch (parsed.type) {
+          case 'tool_call':
+            // 验证工具调用消息
+            if ('name' in parsed && 'parameters' in parsed) {
+              parsedContent = {
+                type: MessageType.TOOL_CALL,
+                name: parsed.name,
+                parameters: parsed.parameters
+              };
+              console.log('Created tool_call content:', parsedContent);
+            } else {
+              console.log('Invalid tool_call content, missing required fields');
+              parsedContent = dbMessage.content;
+            }
+            break;
+
+          case 'tool_result':
+            // 验证工具结果消息
+            if ('tool_call_id' in parsed && 'status' in parsed && 'message' in parsed) {
+              parsedContent = {
+                type: MessageType.TOOL_RESULT,
+                tool_call_id: parsed.tool_call_id,
+                status: parsed.status as 'success' | 'error',
+                message: parsed.message,
+                details: parsed.details
+              };
+              console.log('Created tool_result content:', parsedContent);
+            } else {
+              console.log('Invalid tool_result content, missing required fields');
+              parsedContent = dbMessage.content;
+            }
+            break;
+
+          case 'tool_calls':
+            // 验证多个工具调用消息
+            if ('calls' in parsed && Array.isArray(parsed.calls)) {
+              parsedContent = {
+                type: MessageType.TOOL_CALLS,
+                calls: parsed.calls
+              };
+              console.log('Created tool_calls content:', parsedContent);
+            } else {
+              console.log('Invalid tool_calls content, missing required fields');
+              parsedContent = dbMessage.content;
+            }
+            break;
+
+          case 'data_request':
+            // 验证数据请求消息
+            if ('fields' in parsed && Array.isArray(parsed.fields)) {
+              parsedContent = {
+                type: MessageType.DATA_REQUEST,
+                fields: parsed.fields
+              };
+              console.log('Created data_request content:', parsedContent);
+            } else {
+              console.log('Invalid data_request content, missing required fields');
+              parsedContent = dbMessage.content;
+            }
+            break;
+
+          case 'data_response':
+            // 验证数据响应消息
+            if ('data' in parsed && typeof parsed.data === 'object') {
+              parsedContent = {
+                type: MessageType.DATA_RESPONSE,
+                data: parsed.data
+              };
+              console.log('Created data_response content:', parsedContent);
+            } else {
+              console.log('Invalid data_response content, missing required fields');
+              parsedContent = dbMessage.content;
+            }
+            break;
+
+          case 'text':
+            // 验证文本消息
+            if ('text' in parsed && typeof parsed.text === 'string') {
+              parsedContent = {
+                type: MessageType.TEXT,
+                text: parsed.text
+              };
+              console.log('Created text content:', parsedContent);
+            } else {
+              console.log('Invalid text content, missing required fields');
+              parsedContent = dbMessage.content;
+            }
+            break;
+
+          default:
+            console.log(`Unknown message type: ${parsed.type}, creating error message`);
+            parsedContent = {
+              type: MessageType.ERROR,
+              message: `无法识别的消息类型: ${parsed.type}`,
+              originalContent: JSON.stringify(parsed, null, 2)
+            };
+        }
+      } else {
+        // 如果没有type字段，创建错误消息
+        console.log('No type field in parsed content, creating error message');
+        parsedContent = {
+          type: MessageType.ERROR,
+          message: '无法识别的消息格式: 缺少类型字段',
+          originalContent: JSON.stringify(parsed, null, 2)
+        };
+      }
+    } catch (e) {
+      // 如果解析失败，但内容看起来像JSON，创建错误消息
+      if (dbMessage.content.trim().startsWith('{') && dbMessage.content.trim().endsWith('}')) {
+        console.log('Failed to parse JSON, but content looks like JSON, creating error message:', e);
+        parsedContent = {
+          type: MessageType.ERROR,
+          message: 'JSON解析失败: 无效的JSON格式',
+          originalContent: dbMessage.content
+        };
+      } else {
+        // 否则视为纯文本
+        console.log('Failed to parse JSON, treating as plain text:', e);
+        parsedContent = dbMessage.content;
+      }
+    }
+  } else {
+    // 如果是user或system角色，直接使用原始内容
     parsedContent = dbMessage.content;
   }
 
@@ -203,11 +301,11 @@ export function toLLMHistoryMessage(dbMessage: DatabaseMessage): LLMHistoryMessa
   try {
     const parsedContent = JSON.parse(dbMessage.content);
 
-    // 如果是assistant角色且内容是工具调用
-    if (dbMessage.role === 'assistant' && parsedContent.type === 'tool_calls') {
+    // 使用isToolCallsContent类型守卫函数验证
+    if (dbMessage.role === 'assistant' && isToolCallsContent(parsedContent)) {
       // 将内容设为null，添加tool_calls
       llmMessage.content = null;
-      llmMessage.tool_calls = parsedContent.calls.map((call: any) => ({
+      llmMessage.tool_calls = parsedContent.calls.map((call) => ({
         id: call.id || `call_${Math.random().toString(36).substring(2)}`,
         type: 'function',
         function: {
@@ -216,8 +314,9 @@ export function toLLMHistoryMessage(dbMessage: DatabaseMessage): LLMHistoryMessa
         }
       }));
     }
-  } catch (e) {
+  } catch (error) {
     // 如果解析失败，保持原始内容
+    console.log('Failed to parse JSON in toLLMHistoryMessage:', error);
   }
 
   return llmMessage;
@@ -245,7 +344,7 @@ export function createDatabaseMessage({
   sendToLLM?: boolean;
   toolCallId?: string;
   sequence?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }): Omit<DatabaseMessage, 'id' | 'created_at'> {
   // 如果内容是对象，转换为JSON字符串
   const contentStr = typeof content === 'object' ? JSON.stringify(content) : content;

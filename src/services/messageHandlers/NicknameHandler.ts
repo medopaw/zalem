@@ -22,6 +22,34 @@ export class NicknameHandler extends BaseHandler {
       messages.push(await this.saveMessage(message.content, 'assistant', context));
     }
 
+    // 保存工具调用消息
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      // 创建工具调用消息
+      for (const call of message.tool_calls) {
+        if (!['set_nickname', 'clear_nickname'].includes(call.function.name)) {
+          continue;
+        }
+
+        const toolCallContent = {
+          type: 'tool_call',
+          name: call.function.name,
+          parameters: JSON.parse(call.function.arguments)
+        };
+
+        console.log('Saving tool call message:', toolCallContent);
+
+        // 保存工具调用消息
+        const savedMessage = await this.saveMessage(
+          JSON.stringify(toolCallContent),
+          'tool', // 使用tool角色保持一致性
+          context
+        );
+
+        console.log('Saved tool call message:', savedMessage);
+        messages.push(savedMessage);
+      }
+    }
+
     // Handle each nickname-related tool call
     for (const call of message.tool_calls || []) {
       if (!['set_nickname', 'clear_nickname'].includes(call.function.name)) {
@@ -34,25 +62,38 @@ export class NicknameHandler extends BaseHandler {
             await this.handleSetNickname(
               JSON.parse(call.function.arguments),
               context,
-              messages
+              messages,
+              call.id
             );
             break;
           case 'clear_nickname':
-            await this.handleClearNickname(context, messages);
+            await this.handleClearNickname(
+              context,
+              messages,
+              call.id
+            );
             break;
         }
       } catch (error) {
         console.error('Error handling nickname operation:', error);
-        messages.push(await this.saveMessage(
-          JSON.stringify({
-            type: 'tool_result',
-            tool_call_id: call.id,
-            status: 'error',
-            message: error instanceof Error ? error.message : '操作失败'
-          }),
-          'assistant',
+        const errorContent = {
+          type: 'tool_result',
+          tool_call_id: call.id,
+          status: 'error',
+          message: error instanceof Error ? error.message : '操作失败'
+        };
+
+        console.log('Saving error message:', errorContent);
+
+        const savedErrorMessage = await this.saveMessage(
+          JSON.stringify(errorContent),
+          'tool',
           context
-        ));
+        );
+
+        console.log('Saved error message:', savedErrorMessage);
+
+        messages.push(savedErrorMessage);
         throw error;
       }
     }
@@ -63,7 +104,8 @@ export class NicknameHandler extends BaseHandler {
   private async handleSetNickname(
     params: { nickname: string },
     context: MessageContext,
-    messages: ChatMessage[]
+    messages: ChatMessage[],
+    toolCallId: string
   ): Promise<void> {
     // 更新用户昵称
     const { error } = await context.supabase
@@ -76,21 +118,31 @@ export class NicknameHandler extends BaseHandler {
     // 清除用户的预生成消息，因为昵称已更改
     await this.clearPregeneratedMessages(context.userId, context.supabase);
 
-    messages.push(await this.saveMessage(
-      JSON.stringify({
-        type: 'tool_result',
-        tool_call_id: 'set_nickname', // 注意：这里没有真正的tool_call_id，使用函数名代替
-        status: 'success',
-        message: `昵称已设置为 ${params.nickname}`
-      }),
-      'assistant',
+    const toolResultContent = {
+      type: 'tool_result',
+      tool_call_id: toolCallId,
+      status: 'success',
+      message: `昵称已设置为 ${params.nickname}`
+    };
+
+    console.log('Saving tool result message:', toolResultContent);
+
+    // 保存工具调用结果消息
+    const savedResultMessage = await this.saveMessage(
+      JSON.stringify(toolResultContent),
+      'tool', // 使用tool角色而不是assistant
       context
-    ));
+    );
+
+    console.log('Saved tool result message:', savedResultMessage);
+
+    messages.push(savedResultMessage);
   }
 
   private async handleClearNickname(
     context: MessageContext,
-    messages: ChatMessage[]
+    messages: ChatMessage[],
+    toolCallId: string
   ): Promise<void> {
     const { error } = await context.supabase
       .from('users')
@@ -102,16 +154,25 @@ export class NicknameHandler extends BaseHandler {
     // 清除用户的预生成消息，因为昵称已清除
     await this.clearPregeneratedMessages(context.userId, context.supabase);
 
-    messages.push(await this.saveMessage(
-      JSON.stringify({
-        type: 'tool_result',
-        tool_call_id: 'clear_nickname', // 注意：这里没有真正的tool_call_id，使用函数名代替
-        status: 'success',
-        message: '昵称已清除'
-      }),
-      'assistant',
+    const toolResultContent = {
+      type: 'tool_result',
+      tool_call_id: toolCallId,
+      status: 'success',
+      message: '昵称已清除'
+    };
+
+    console.log('Saving clear nickname tool result message:', toolResultContent);
+
+    // 保存工具调用结果消息
+    const savedResultMessage = await this.saveMessage(
+      JSON.stringify(toolResultContent),
+      'tool', // 使用tool角色而不是assistant
       context
-    ));
+    );
+
+    console.log('Saved clear nickname tool result message:', savedResultMessage);
+
+    messages.push(savedResultMessage);
   }
 
   /**

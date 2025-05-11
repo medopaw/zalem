@@ -18,13 +18,40 @@ export class ThreadHandler extends BaseHandler {
   }
 
   async handle(message: LLMMessage, context: MessageContext): Promise<ChatMessage[]> {
+    const messages: ChatMessage[] = [];
+
+    // Save the original message if present
+    if (message.content) {
+      messages.push(await this.saveMessage(message.content, 'assistant', context));
+    }
+
+    // 保存工具调用消息
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      // 创建工具调用消息
+      const toolCallsContent = {
+        type: 'tool_calls',
+        calls: message.tool_calls.map(call => ({
+          id: call.id,
+          name: call.function.name,
+          parameters: JSON.parse(call.function.arguments)
+        }))
+      };
+
+      // 保存工具调用消息
+      messages.push(await this.saveMessage(
+        JSON.stringify(toolCallsContent),
+        'tool', // 使用tool角色保持一致性
+        context
+      ));
+    }
+
     // Find the set_thread_title tool call
     const threadTitleCall = message.tool_calls?.find(tool =>
       tool.function && tool.function.name === 'set_thread_title'
     );
 
     if (!threadTitleCall || !threadTitleCall.function) {
-      return [];
+      return messages;
     }
 
     // Parse the arguments
@@ -35,13 +62,7 @@ export class ThreadHandler extends BaseHandler {
       if (!title) throw new Error('Missing title parameter');
     } catch (error) {
       console.error('Error parsing thread title arguments:', error);
-      return [];
-    }
-    const messages: ChatMessage[] = [];
-
-    // Save the function call message
-    if (message.content) {
-      messages.push(await this.saveMessage(message.content, 'assistant', context));
+      return messages;
     }
 
     // Update thread title
@@ -79,7 +100,7 @@ export class ThreadHandler extends BaseHandler {
         status: 'success',
         message: `已将会话标题设置为"${title}"`
       }),
-      'assistant',
+      'tool', // 使用tool角色保持一致性
       context
     ));
 

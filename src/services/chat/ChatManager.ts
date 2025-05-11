@@ -72,15 +72,15 @@ export class ChatManager {
       // Update thread title
       this.threadTitle = thread?.title || null;
 
-      // Load existing messages
-      const { messages, error } = await this.messageRepository.getMessages(this.threadId);
+      // 加载原始消息
+      const { messages: dbMessages, error: dbError } = await this.messageRepository.getMessages(this.threadId, { includeHidden: false });
 
-      if (error) {
-        return { messages: [], error };
+      if (dbError) {
+        return { messages: [], error: dbError };
       }
 
       // 如果没有消息，则创建欢迎消息
-      const hasNoMessages = messages.length === 0;
+      const hasNoMessages = dbMessages.length === 0;
 
       // 只在调试模式下输出日志
       if (process.env.NODE_ENV === 'development') {
@@ -88,7 +88,7 @@ export class ChatManager {
           id: this.threadId,
           created_at: thread?.created_at,
           hasNoMessages,
-          messageCount: messages.length
+          messageCount: dbMessages.length
         });
       }
 
@@ -109,7 +109,9 @@ export class ChatManager {
         return { messages: this.messages, error: null };
       }
 
-      this.messages = messages;
+      // 我们不再需要单独加载 DisplayMessage，因为我们已经有了 dbMessages
+      // 直接使用 dbMessages 作为 ChatMessage
+      this.messages = dbMessages;
       return { messages: this.messages, error: null };
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -190,7 +192,7 @@ export class ChatManager {
           assistantMessage,
           {
             ...context,
-            saveMessage: (content: string, role: 'user' | 'assistant') =>
+            saveMessage: (content: string, role: 'user' | 'assistant' | 'tool') =>
               this.saveMessage(content, role)
           }
         );
@@ -244,7 +246,7 @@ export class ChatManager {
 
   private async saveMessage(
     content: string,
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'tool'
   ): Promise<ChatMessage> {
     const threadId = this.pendingThreadId || this.threadId;
     return this.messageRepository.saveMessage(content, role, this.userId, threadId);
@@ -256,8 +258,11 @@ export class ChatManager {
    * @returns 格式化的消息历史
    */
   private async prepareChatHistory(includeHidden: boolean = true): Promise<ChatHistoryMessage[]> {
-    // 获取消息历史，包含隐藏消息
-    const { messages } = await this.messageRepository.getMessages(this.threadId, includeHidden);
+    // 获取消息历史，包含隐藏消息，并且只包含需要发送给LLM的消息
+    const { messages } = await this.messageRepository.getMessages(this.threadId, {
+      includeHidden,
+      forLLM: true
+    });
 
     const history = messages
       .slice(-HISTORY_LIMIT)
@@ -313,7 +318,7 @@ export class ChatManager {
     try {
       // 准备对话内容作为标题生成的输入
       // 只使用可见消息生成标题
-      const { messages: visibleMessages } = await this.messageRepository.getMessages(this.threadId, false);
+      const { messages: visibleMessages } = await this.messageRepository.getMessages(this.threadId, { includeHidden: false });
       const historyForTitle = visibleMessages
         .slice(0, MESSAGES_FOR_TITLE)
         .map(msg => `${msg.role === 'user' ? '用户' : '助手'}: ${msg.content}`)

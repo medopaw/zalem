@@ -14,7 +14,7 @@ import { ChatService } from '../services/ChatService';
 /**
  * 表示消息发送者的角色
  */
-export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
 /**
  * 表示LLM响应中的工具调用
@@ -54,6 +54,14 @@ export interface ChatMessage {
   user_id: string;
   /** 消息所属的会话ID */
   thread_id: string;
+  /** 是否发送给LLM处理 */
+  send_to_llm?: boolean;
+  /** 工具调用ID */
+  tool_call_id?: string;
+  /** 消息序列号 */
+  sequence?: number;
+  /** 元数据 */
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -111,7 +119,7 @@ export interface MessageContext {
   /** 当前会话ID */
   threadId: string;
   /** 保存消息的回调函数 */
-  saveMessage?: (content: string, role: 'user' | 'assistant') => Promise<ChatMessage>;
+  saveMessage?: (content: string, role: 'user' | 'assistant' | 'tool') => Promise<ChatMessage>;
 }
 
 /**

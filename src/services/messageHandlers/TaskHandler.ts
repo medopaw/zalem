@@ -67,6 +67,26 @@ export class TaskHandler extends BaseHandler {
       messages.push(await this.saveMessage(message.content, 'assistant', context));
     }
 
+    // 保存工具调用消息
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      // 创建工具调用消息
+      const toolCallsContent = {
+        type: 'tool_calls',
+        calls: message.tool_calls.map(call => ({
+          id: call.id,
+          name: call.function.name,
+          parameters: JSON.parse(call.function.arguments)
+        }))
+      };
+
+      // 保存工具调用消息
+      messages.push(await this.saveMessage(
+        JSON.stringify(toolCallsContent),
+        'tool', // 使用tool角色保持一致性
+        context
+      ));
+    }
+
     // Handle each tool call
     for (const call of message.tool_calls || []) {
       await this.handleToolCall(
@@ -110,31 +130,47 @@ export class TaskHandler extends BaseHandler {
       }
 
       // Add success message with specific message
-      messages.push(await this.saveMessage(
-        JSON.stringify({
-          type: 'tool_result',
-          tool_call_id: toolCallId,
-          status: 'success',
-          message: this.getSuccessMessage(functionName)
-        }),
-        'assistant',
+      const successContent = {
+        type: 'tool_result',
+        tool_call_id: toolCallId,
+        status: 'success',
+        message: this.getSuccessMessage(functionName)
+      };
+
+      console.log('Saving success message:', successContent);
+
+      const savedSuccessMessage = await this.saveMessage(
+        JSON.stringify(successContent),
+        'tool',
         context
-      ));
+      );
+
+      console.log('Saved success message:', savedSuccessMessage);
+
+      messages.push(savedSuccessMessage);
 
     } catch (error) {
       console.error('Operation failed:', error);
       // Save error message
-      messages.push(await this.saveMessage(
-        JSON.stringify({
-          type: 'tool_result',
-          tool_call_id: toolCallId,
-          status: 'error',
-          message: error instanceof Error ? error.message : '操作失败',
-          details: error instanceof Error ? error.stack : undefined
-        }),
-        'assistant',
+      const errorContent = {
+        type: 'tool_result',
+        tool_call_id: toolCallId,
+        status: 'error',
+        message: error instanceof Error ? error.message : '操作失败',
+        details: error instanceof Error ? error.stack : undefined
+      };
+
+      console.log('Saving error message:', errorContent);
+
+      const savedErrorMessage = await this.saveMessage(
+        JSON.stringify(errorContent),
+        'tool',
         context
-      ));
+      );
+
+      console.log('Saved error message:', savedErrorMessage);
+
+      messages.push(savedErrorMessage);
       // 不再重新抛出错误，而是让消息处理继续
       // throw error; // Re-throw to ensure proper error handling
     }

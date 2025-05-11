@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { ChatMessage } from '../types/chat';
-import MessageContent from './MessageContent';
+import UnifiedMessageContent from './UnifiedMessageContent';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -55,7 +55,7 @@ function MessageList({ messages, error, isNetworkError = false, onRetry }: Messa
             } mb-3`}
           >
             <div className="max-w-[80%]">
-              <MessageContent message={message} />
+              <UnifiedMessageContent message={message} />
             </div>
           </div>
         ))}

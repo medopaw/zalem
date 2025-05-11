@@ -19,6 +19,26 @@ export class DataRequestHandler extends BaseHandler {
       messages.push(await this.saveMessage(message.content, 'assistant', context));
     }
 
+    // 保存工具调用消息
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      // 创建工具调用消息
+      const toolCallsContent = {
+        type: 'tool_calls',
+        calls: message.tool_calls.map(call => ({
+          id: call.id,
+          name: call.function.name,
+          parameters: JSON.parse(call.function.arguments)
+        }))
+      };
+
+      // 保存工具调用消息
+      messages.push(await this.saveMessage(
+        JSON.stringify(toolCallsContent),
+        'tool', // 使用tool角色保持一致性
+        context
+      ));
+    }
+
     // Find the request_data tool call
     const requestCall = message.tool_calls?.find(call =>
       call.function.name === 'request_data'
@@ -90,28 +110,44 @@ export class DataRequestHandler extends BaseHandler {
       }
 
       // Save success response - use data_response type
-      messages.push(await this.saveMessage(
-        JSON.stringify({
-          type: 'data_response',
-          data: responseData
-        }),
-        'assistant',
+      const responseContent = {
+        type: 'data_response',
+        data: responseData
+      };
+
+      console.log('Saving data response message:', responseContent);
+
+      const savedResponseMessage = await this.saveMessage(
+        JSON.stringify(responseContent),
+        'tool',
         context
-      ));
+      );
+
+      console.log('Saved data response message:', savedResponseMessage);
+
+      messages.push(savedResponseMessage);
 
     } catch (error) {
       console.error('Error fetching data:', error);
       // Save error message - use tool_result type for errors
-      messages.push(await this.saveMessage(
-        JSON.stringify({
-          type: 'tool_result',
-          tool_call_id: requestCall.id,
-          status: 'error',
-          message: error instanceof Error ? error.message : '获取数据失败'
-        }),
-        'assistant',
+      const errorContent = {
+        type: 'tool_result',
+        tool_call_id: requestCall.id,
+        status: 'error',
+        message: error instanceof Error ? error.message : '获取数据失败'
+      };
+
+      console.log('Saving error message:', errorContent);
+
+      const savedErrorMessage = await this.saveMessage(
+        JSON.stringify(errorContent),
+        'tool',
         context
-      ));
+      );
+
+      console.log('Saved error message:', savedErrorMessage);
+
+      messages.push(savedErrorMessage);
       throw error;
     }
 

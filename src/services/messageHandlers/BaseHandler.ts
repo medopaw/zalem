@@ -13,8 +13,8 @@ export abstract class BaseHandler implements MessageHandler {
    */
   protected async saveMessage(
     content: string,
-    role: 'user' | 'assistant',
-    context: MessageContext & { saveMessage?: (content: string, role: 'user' | 'assistant') => Promise<ChatMessage> }
+    role: 'user' | 'assistant' | 'tool',
+    context: MessageContext & { saveMessage?: (content: string, role: 'user' | 'assistant' | 'tool') => Promise<ChatMessage> }
   ): Promise<ChatMessage> {
     if (context.saveMessage) {
       return context.saveMessage(content, role);
