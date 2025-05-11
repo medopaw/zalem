@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../services/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -53,6 +53,9 @@ function Reports() {
       }
 
       try {
+        // 获取 Supabase 客户端实例
+        const supabase = getSupabase();
+
         const { data, error } = await supabase
           .from('task_assignees')
           .select(`
@@ -195,7 +198,7 @@ function Reports() {
           <Bar dataKey="tasks" name="任务数" fill="#3B82F6" />
         </BarChart>
       </div>
-      
+
       <div>
         <h3 className="text-lg font-semibold mb-4">本周概览</h3>
         <div className="grid grid-cols-2 gap-4">

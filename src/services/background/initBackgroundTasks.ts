@@ -1,6 +1,6 @@
 import { BackgroundTaskManager } from './BackgroundTaskManager';
 import { PregenerateMessagesTask } from './PregenerateMessagesTask';
-import { supabase } from '../../lib/supabase';
+import { getSupabase } from '../../services/supabase';
 
 // 跟踪任务初始化状态
 let tasksInitialized = false;
@@ -17,6 +17,9 @@ export function initBackgroundTasks(): void {
   }
 
   console.log('Initializing background tasks system');
+
+  // 获取 Supabase 客户端实例
+  const supabase = getSupabase();
 
   // 初始化预生成消息任务
   new PregenerateMessagesTask(supabase);

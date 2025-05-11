@@ -13,6 +13,7 @@ import {
 } from './messageContentTypes';
 import { MessageType } from '../utils/MessageTypeRegistry';
 import { ChatMessage } from './chat';
+import logger from '../utils/logger';
 
 /**
  * 消息角色类型
@@ -129,19 +130,50 @@ export interface LLMHistoryMessage {
 export function toDisplayMessage(dbMessage: DatabaseMessage | ChatMessage): DisplayMessage {
   let parsedContent: MessageContent;
 
-  console.log('Converting DB message to display message:', {
+  // 使用智能日志系统，避免重复日志
+  logger.info('Converting DB message to display message:', [{
     id: dbMessage.id,
     role: dbMessage.role,
-    content: dbMessage.content.substring(0, 100) + (dbMessage.content.length > 100 ? '...' : '')
-  });
+    contentLength: dbMessage.content.length,
+    isJSON: dbMessage.content.trim().startsWith('{') && dbMessage.content.trim().endsWith('}')
+  }], 'messageStructures');
 
   // 如果是tool角色或者assistant角色，尝试解析JSON内容
   if (dbMessage.role === 'tool' || dbMessage.role === 'assistant') {
     try {
-      // 尝试解析JSON内容
-      const parsed = JSON.parse(dbMessage.content);
+      // 检查内容是否已经是对象
+      let parsed;
+      if (typeof dbMessage.content === 'object') {
+        console.log('Content is already an object, no need to parse');
+        parsed = dbMessage.content;
+      } else {
+        // 检查内容是否看起来像JSON
+        const contentStr = String(dbMessage.content).trim();
+        if (contentStr.startsWith('{') && contentStr.endsWith('}')) {
+          // 使用智能日志系统，避免重复日志
+          logger.debug('Attempting to parse JSON content', undefined, 'messageStructures');
+          parsed = JSON.parse(contentStr);
+        } else {
+          // 不是JSON格式，直接使用原始内容
+          // 使用智能日志系统，避免重复日志
+          logger.debug('Content does not look like JSON, using as plain text', undefined, 'messageStructures');
+          parsedContent = dbMessage.content;
+          return {
+            id: dbMessage.id,
+            content: parsedContent,
+            role: dbMessage.role,
+            created_at: dbMessage.created_at,
+            user_id: dbMessage.user_id,
+            metadata: dbMessage.metadata
+          };
+        }
+      }
 
-      console.log('Parsed content:', parsed);
+      // 使用智能日志系统，避免重复日志
+      logger.debug('Successfully parsed JSON content:', [{
+        hasTypeField: parsed && typeof parsed === 'object' && 'type' in parsed,
+        type: parsed && typeof parsed === 'object' && 'type' in parsed ? parsed.type : 'none'
+      }], 'messageStructures');
 
       // 检查是否包含type字段
       if (parsed && typeof parsed === 'object' && 'type' in parsed) {
@@ -165,6 +197,7 @@ export function toDisplayMessage(dbMessage: DatabaseMessage | ChatMessage): Disp
           case 'tool_result':
             // 验证工具结果消息
             if ('tool_call_id' in parsed && 'status' in parsed && 'message' in parsed) {
+              // 使用枚举值确保类型安全
               parsedContent = {
                 type: MessageType.TOOL_RESULT,
                 tool_call_id: parsed.tool_call_id,
@@ -173,6 +206,8 @@ export function toDisplayMessage(dbMessage: DatabaseMessage | ChatMessage): Disp
                 details: parsed.details
               };
               console.log('Created tool_result content:', parsedContent);
+              console.log('Tool result content type:', typeof parsedContent);
+              console.log('Tool result content keys:', Object.keys(parsedContent));
             } else {
               console.log('Invalid tool_result content, missing required fields');
               parsedContent = dbMessage.content;
@@ -254,16 +289,20 @@ export function toDisplayMessage(dbMessage: DatabaseMessage | ChatMessage): Disp
       }
     } catch (e) {
       // 如果解析失败，但内容看起来像JSON，创建错误消息
+      console.error('JSON解析失败:', e);
+      console.log('原始内容:', dbMessage.content);
+
       if (dbMessage.content.trim().startsWith('{') && dbMessage.content.trim().endsWith('}')) {
-        console.log('Failed to parse JSON, but content looks like JSON, creating error message:', e);
+        console.log('内容看起来像JSON，创建错误消息');
         parsedContent = {
           type: MessageType.ERROR,
           message: 'JSON解析失败: 无效的JSON格式',
           originalContent: dbMessage.content
         };
+        console.log('创建的错误消息内容:', parsedContent);
       } else {
         // 否则视为纯文本
-        console.log('Failed to parse JSON, treating as plain text:', e);
+        console.log('内容不是JSON格式，视为纯文本');
         parsedContent = dbMessage.content;
       }
     }

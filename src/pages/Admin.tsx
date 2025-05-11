@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../services/supabase';
 import { Key, Save, AlertCircle } from 'lucide-react';
 
 function Admin() {
@@ -13,6 +13,9 @@ function Admin() {
 
   const loadApiKey = async () => {
     setLoading(true);
+    // 获取 Supabase 客户端实例
+    const supabase = getSupabase();
+
     const { data, error } = await supabase
       .from('system_settings')
       .select('value')
@@ -31,6 +34,9 @@ function Admin() {
     setMessage(null);
 
     try {
+      // 获取 Supabase 客户端实例
+      const supabase = getSupabase();
+
       const { error } = await supabase
         .from('system_settings')
         .upsert(

@@ -9,16 +9,42 @@ import Admin from './pages/Admin';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { initBackgroundTasks } from './services/background/initBackgroundTasks';
+import { initializeSystem } from './utils/initializeSystem';
 
 const queryClient = new QueryClient();
 
 function App() {
-  // 在应用启动时初始化后台任务系统
+  // 在应用启动时初始化系统
   useEffect(() => {
-    // 在所有环境中初始化后台任务
-    // BackgroundTaskManager 的 start 方法已经有防止重复启动的机制
+    // 初始化后台任务
     console.log(`Initializing background tasks in ${process.env.NODE_ENV} environment`);
     initBackgroundTasks();
+
+    // 初始化系统
+    console.log('Initializing system in App');
+
+    // 使用延迟初始化，确保所有React组件都已完全加载
+    // React组件加载是异步的，需要等待它们完全加载后再初始化系统
+    const initTimer = setTimeout(() => {
+      try {
+        // 直接调用初始化函数
+        const success = initializeSystem();
+        if (success) {
+          console.log('System initialized successfully in App');
+        }
+      } catch (error) {
+        // 显示错误信息到控制台
+        console.error('Error during system initialization:', error);
+
+        // 这里可以添加代码，向用户显示错误信息
+        // 例如，可以设置一个全局状态，然后在UI中显示错误信息
+        // 或者使用toast/notification组件显示错误
+        alert(`系统初始化失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      }
+    }, 2000); // 延长延迟时间到2秒，确保所有组件已完全加载
+
+    // 清理定时器
+    return () => clearTimeout(initTimer);
   }, []);
 
   return (

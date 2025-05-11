@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { ChatMessage } from '../types/chat';
 import { ChatManager } from '../services/ChatManager';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../services/supabase';
 import { SupabaseMessageRepository } from '../repositories/SupabaseMessageRepository';
 import { SupabaseThreadRepository } from '../repositories/SupabaseThreadRepository';
 
@@ -27,6 +27,9 @@ export function useMessages(userId: string | undefined) {
       if (process.env.NODE_ENV === 'development') {
         console.log(`Creating new ChatManager for thread ${threadId}`);
       }
+      // 获取 Supabase 客户端实例
+      const supabase = getSupabase();
+
       const messageRepository = new SupabaseMessageRepository(supabase);
       const threadRepository = new SupabaseThreadRepository(supabase);
       chatManagerRef.current = new ChatManager(userId!, threadId, messageRepository, threadRepository);

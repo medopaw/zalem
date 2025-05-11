@@ -2,6 +2,7 @@ import { BaseHandler } from './BaseHandler';
 import type { MessageContext, ChatMessage } from '../../types/messages';
 import type { ThreadUpdatedEventDetail } from '../../types/events';
 import type { LLMMessage } from '../../types/chat';
+import { MessageType } from '../../utils/MessageTypeRegistry';
 
 /**
  * @deprecated 此处理器已被弃用，但为了向后兼容而保留。
@@ -29,7 +30,7 @@ export class ThreadHandler extends BaseHandler {
     if (message.tool_calls && message.tool_calls.length > 0) {
       // 创建工具调用消息
       const toolCallsContent = {
-        type: 'tool_calls',
+        type: MessageType.TOOL_CALLS, // 使用枚举值确保匹配
         calls: message.tool_calls.map(call => ({
           id: call.id,
           name: call.function.name,
@@ -95,7 +96,7 @@ export class ThreadHandler extends BaseHandler {
     // Save success message
     messages.push(await this.saveMessage(
       JSON.stringify({
-        type: 'tool_result',
+        type: MessageType.TOOL_RESULT, // 使用枚举值确保匹配
         tool_call_id: threadTitleCall.id,
         status: 'success',
         message: `已将会话标题设置为"${title}"`

@@ -3,6 +3,7 @@ import type { MessageContext, ChatMessage, LLMMessage } from '../../types/messag
 import { SupabasePregeneratedMessageRepository } from '../../repositories/SupabasePregeneratedMessageRepository';
 import { IPregeneratedMessageRepository } from '../../repositories/IPregeneratedMessageRepository';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { MessageType } from '../../utils/MessageTypeRegistry';
 
 /**
  * Handles nickname-related functions
@@ -77,7 +78,7 @@ export class NicknameHandler extends BaseHandler {
       } catch (error) {
         console.error('Error handling nickname operation:', error);
         const errorContent = {
-          type: 'tool_result',
+          type: MessageType.TOOL_RESULT, // 使用枚举值确保匹配
           tool_call_id: call.id,
           status: 'error',
           message: error instanceof Error ? error.message : '操作失败'
@@ -85,11 +86,37 @@ export class NicknameHandler extends BaseHandler {
 
         console.log('Saving error message:', errorContent);
 
-        const savedErrorMessage = await this.saveMessage(
-          JSON.stringify(errorContent),
-          'tool',
-          context
-        );
+        // 保存错误消息 - 直接使用supabase以便设置send_to_llm为false
+        let savedErrorMessage: ChatMessage;
+
+        if (context.saveMessage) {
+          // 如果有自定义的saveMessage方法，使用它
+          savedErrorMessage = await context.saveMessage(JSON.stringify(errorContent), 'tool');
+
+          // 然后更新send_to_llm字段为false
+          await context.supabase
+            .from('chat_messages')
+            .update({ send_to_llm: false })
+            .eq('id', savedErrorMessage.id);
+        } else {
+          // 直接使用supabase保存消息
+          const { data, error: dbError } = await context.supabase
+            .from('chat_messages')
+            .insert([
+              {
+                content: JSON.stringify(errorContent),
+                role: 'tool',
+                user_id: context.userId,
+                thread_id: context.threadId,
+                send_to_llm: false // 明确设置为false
+              },
+            ])
+            .select()
+            .single();
+
+          if (dbError) throw dbError;
+          savedErrorMessage = data;
+        }
 
         console.log('Saved error message:', savedErrorMessage);
 
@@ -119,7 +146,7 @@ export class NicknameHandler extends BaseHandler {
     await this.clearPregeneratedMessages(context.userId, context.supabase);
 
     const toolResultContent = {
-      type: 'tool_result',
+      type: MessageType.TOOL_RESULT, // 使用枚举值确保匹配
       tool_call_id: toolCallId,
       status: 'success',
       message: `昵称已设置为 ${params.nickname}`
@@ -127,12 +154,47 @@ export class NicknameHandler extends BaseHandler {
 
     console.log('Saving tool result message:', toolResultContent);
 
-    // 保存工具调用结果消息
-    const savedResultMessage = await this.saveMessage(
-      JSON.stringify(toolResultContent),
-      'tool', // 使用tool角色而不是assistant
-      context
-    );
+    // 验证JSON是否有效
+    const toolResultJson = JSON.stringify(toolResultContent);
+    try {
+      const parsed = JSON.parse(toolResultJson);
+      console.log('Validated tool result JSON can be parsed back:', parsed);
+    } catch (e) {
+      console.error('Invalid tool result JSON:', e);
+    }
+
+    // 保存工具调用结果消息 - 确保使用tool角色和正确的tool_call_id
+    let savedResultMessage: ChatMessage;
+
+    if (context.saveMessage) {
+      // 如果有自定义的saveMessage方法，使用它
+      savedResultMessage = await context.saveMessage(toolResultJson, 'tool');
+
+      // 确保设置tool_call_id字段，这对于大模型理解工具调用结果至关重要
+      await context.supabase
+        .from('chat_messages')
+        .update({ tool_call_id: toolCallId })
+        .eq('id', savedResultMessage.id);
+    } else {
+      // 直接使用supabase保存消息
+      const { data, error } = await context.supabase
+        .from('chat_messages')
+        .insert([
+          {
+            content: toolResultJson,
+            role: 'tool',
+            user_id: context.userId,
+            thread_id: context.threadId,
+            send_to_llm: true, // 必须发送给大模型
+            tool_call_id: toolCallId // 设置工具调用ID，这对于大模型理解工具调用结果至关重要
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      savedResultMessage = data;
+    }
 
     console.log('Saved tool result message:', savedResultMessage);
 
@@ -155,7 +217,7 @@ export class NicknameHandler extends BaseHandler {
     await this.clearPregeneratedMessages(context.userId, context.supabase);
 
     const toolResultContent = {
-      type: 'tool_result',
+      type: MessageType.TOOL_RESULT, // 使用枚举值确保匹配
       tool_call_id: toolCallId,
       status: 'success',
       message: '昵称已清除'
@@ -163,12 +225,47 @@ export class NicknameHandler extends BaseHandler {
 
     console.log('Saving clear nickname tool result message:', toolResultContent);
 
-    // 保存工具调用结果消息
-    const savedResultMessage = await this.saveMessage(
-      JSON.stringify(toolResultContent),
-      'tool', // 使用tool角色而不是assistant
-      context
-    );
+    // 验证JSON是否有效
+    const toolResultJson = JSON.stringify(toolResultContent);
+    try {
+      const parsed = JSON.parse(toolResultJson);
+      console.log('Validated clear nickname tool result JSON can be parsed back:', parsed);
+    } catch (e) {
+      console.error('Invalid clear nickname tool result JSON:', e);
+    }
+
+    // 保存工具调用结果消息 - 确保使用tool角色和正确的tool_call_id
+    let savedResultMessage: ChatMessage;
+
+    if (context.saveMessage) {
+      // 如果有自定义的saveMessage方法，使用它
+      savedResultMessage = await context.saveMessage(toolResultJson, 'tool');
+
+      // 确保设置tool_call_id字段，这对于大模型理解工具调用结果至关重要
+      await context.supabase
+        .from('chat_messages')
+        .update({ tool_call_id: toolCallId })
+        .eq('id', savedResultMessage.id);
+    } else {
+      // 直接使用supabase保存消息
+      const { data, error } = await context.supabase
+        .from('chat_messages')
+        .insert([
+          {
+            content: toolResultJson,
+            role: 'tool',
+            user_id: context.userId,
+            thread_id: context.threadId,
+            send_to_llm: true, // 必须发送给大模型
+            tool_call_id: toolCallId // 设置工具调用ID，这对于大模型理解工具调用结果至关重要
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      savedResultMessage = data;
+    }
 
     console.log('Saved clear nickname tool result message:', savedResultMessage);
 

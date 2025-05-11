@@ -10,7 +10,7 @@ import { IMessageRepository } from '../../repositories/IMessageRepository';
 import { IThreadRepository } from '../../repositories/IThreadRepository';
 import { SupabaseMessageRepository } from '../../repositories/SupabaseMessageRepository';
 import { SupabaseThreadRepository } from '../../repositories/SupabaseThreadRepository';
-import { supabase } from '../../lib/supabase';
+import { getSupabase } from '../../services/supabase';
 
 const HISTORY_LIMIT = 10;
 const MESSAGES_FOR_TITLE = 5;
@@ -45,8 +45,17 @@ export class ChatManager {
     this.threadId = threadId;
     this.messageParser = new MessageParser();
     this.initialized = false;
-    this.messageRepository = messageRepo || new SupabaseMessageRepository(supabase);
-    this.threadRepository = threadRepo || new SupabaseThreadRepository(supabase);
+
+    // 如果没有提供存储库实例，则创建默认实例
+    if (!messageRepo || !threadRepo) {
+      // 获取 Supabase 客户端实例
+      const supabase = getSupabase();
+      this.messageRepository = messageRepo || new SupabaseMessageRepository(supabase);
+      this.threadRepository = threadRepo || new SupabaseThreadRepository(supabase);
+    } else {
+      this.messageRepository = messageRepo;
+      this.threadRepository = threadRepo;
+    }
   }
 
   /**
@@ -171,7 +180,7 @@ export class ChatManager {
       // Create message context
       const context: MessageContext = {
         userId: this.userId,
-        supabase, // 暂时保留，后续版本将移除对 supabase 的直接依赖
+        supabase: getSupabase(), // 暂时保留，后续版本将移除对 supabase 的直接依赖
         chatHistory, // 使用包含隐藏消息的完整消息历史
         chatService,
         threadId: this.pendingThreadId
@@ -197,6 +206,9 @@ export class ChatManager {
           }
         );
         newMessages.push(...parsedMessages);
+
+        // 注意：工具调用的处理已经移至 MessageService 中，通过事件总线处理
+        // 这里不再需要特殊处理工具调用
       }
 
       // Update internal messages state with all new messages

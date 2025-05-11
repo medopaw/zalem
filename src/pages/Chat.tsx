@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../services/supabase';
 import { Send, Loader2 } from 'lucide-react';
 import { initializeChatService } from '../services/ChatService';
 import ThreadList from '../components/ThreadList';
@@ -49,6 +49,9 @@ function Chat() {
   useEffect(() => {
     const initialize = async () => {
       try {
+        // 获取 Supabase 客户端实例
+        const supabase = getSupabase();
+
         await initializeChatService(supabase);
         setChatServiceState({ initialized: true, error: null });
       } catch (error) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../services/supabase';
 import { checkSupabaseConnection } from '../utils/supabaseUtils';
 import type { ThreadUpdatedEventDetail } from '../types/events';
 import type { Thread } from '../types/threads';
@@ -35,6 +35,9 @@ export function useThreads() {
     const initializeThread = async () => {
       setLoading(true);
       try {
+        // 获取 Supabase 客户端实例
+        const supabase = getSupabase();
+
         // Get thread ID from URL or create new thread
         const threadId = searchParams.get('thread');
         if (threadId) {
@@ -62,10 +65,13 @@ export function useThreads() {
     };
 
     initializeThread();
-  }, []);
+  }, [searchParams, setSearchParams]);
 
   const loadThreads = async () => {
     try {
+      // 获取 Supabase 客户端实例
+      const supabase = getSupabase();
+
       // First check if Supabase is connected
       const isConnected = await checkSupabaseConnection(supabase);
       if (!isConnected) {
@@ -91,6 +97,9 @@ export function useThreads() {
       // 设置加载状态
       setIsCreatingThread(true);
       setError(null);
+
+      // 获取 Supabase 客户端实例
+      const supabase = getSupabase();
 
       // 创建线程存储库实例
       const threadRepository = new SupabaseThreadRepository(supabase);

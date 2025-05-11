@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../services/supabase';
 import { checkSupabaseConnection } from '../utils/supabaseUtils';
 
 interface AuthContextType {
@@ -24,6 +24,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        // 获取 Supabase 客户端实例
+        const supabase = getSupabase();
+
         // Check Supabase connection first
         const isConnected = await checkSupabaseConnection(supabase);
         if (!isConnected) {
@@ -52,6 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const checkAdminStatus = async () => {
       if (user) {
         try {
+          // 获取 Supabase 客户端实例
+          const supabase = getSupabase();
+
           const { data, error } = await supabase
             .from('users')
             .select('role')
@@ -73,6 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const signUp = async (email: string, password: string) => {
+    // 获取 Supabase 客户端实例
+    const supabase = getSupabase();
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -81,6 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    // 获取 Supabase 客户端实例
+    const supabase = getSupabase();
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -89,6 +101,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // 获取 Supabase 客户端实例
+    const supabase = getSupabase();
+
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
