@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, memo } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { ChatMessage } from '../types/chat';
 import UnifiedMessageContent from './UnifiedMessageContent';
@@ -10,7 +10,8 @@ interface MessageListProps {
   onRetry?: () => void;
 }
 
-function MessageList({ messages, error, isNetworkError = false, onRetry }: MessageListProps) {
+// 使用 React.memo 包装组件，避免不必要的重新渲染
+const MessageList = memo(function MessageList({ messages, error, isNetworkError = false, onRetry }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -63,6 +64,6 @@ function MessageList({ messages, error, isNetworkError = false, onRetry }: Messa
       </div>
     </div>
   );
-}
+});
 
 export default MessageList;

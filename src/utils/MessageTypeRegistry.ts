@@ -107,6 +107,9 @@ export class MessageTypeRegistry {
     };
   }
 
+  // 用于跟踪渲染次数
+  private renderCounter = new Map<string, number>();
+
   /**
    * 渲染消息内容
    * @param content 消息内容
@@ -119,6 +122,13 @@ export class MessageTypeRegistry {
     message?: DisplayMessage,
     fallback?: (content: MessageContent) => ReactNode
   ): ReactNode | DefaultTextMark {
+    // 跟踪渲染次数
+    const contentKey = message?.id || JSON.stringify(content);
+    const currentCount = this.renderCounter.get(contentKey) || 0;
+    this.renderCounter.set(contentKey, currentCount + 1);
+
+    console.log(`MessageTypeRegistry.render called ${currentCount + 1} times for message: ${message?.id || 'unknown'}`);
+
     // 处理null或undefined内容
     if (content === null || content === undefined) {
       console.warn('Content is null or undefined, using empty string');

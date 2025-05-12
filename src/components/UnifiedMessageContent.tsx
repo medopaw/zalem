@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
+import React from 'react';
 import { DisplayMessage } from '../types/messageStructures';
 import { ChatMessage } from '../types/chat';
 import { DefaultTextMark } from '../utils/MessageTypeRegistry';
@@ -6,6 +7,7 @@ import { toDisplayMessage } from '../types/messageStructures';
 import DefaultTextRenderer from './messageRenderers/DefaultTextRenderer';
 import { getInitializedRegistry } from '../utils/initializeSystem';
 import logger from '../utils/logger';
+import { useDebugMode } from '../contexts/DebugContext';
 
 interface UnifiedMessageContentProps {
   message: ChatMessage | DisplayMessage;
@@ -15,9 +17,19 @@ interface UnifiedMessageContentProps {
  * 统一的消息内容渲染组件
  * 使用 MessageTypeRegistry 来渲染不同类型的消息
  */
-function UnifiedMessageContent({ message }: UnifiedMessageContentProps) {
+const UnifiedMessageContent = React.memo(function UnifiedMessageContent({ message }: UnifiedMessageContentProps) {
+  // 获取调试模式状态
+  const { isDebugMode } = useDebugMode();
+
+  // 使用 useRef 跟踪渲染次数
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+
   // 获取已初始化的 registry 实例
   const registry = getInitializedRegistry();
+
+  // 输出渲染次数到控制台（无论调试模式是否开启）
+  console.log(`UnifiedMessageContent rendered ${renderCount.current} times for message: ${message.id}`);
 
   // 不再需要使用ref来跟踪日志输出，因为我们使用了智能日志系统
 
@@ -88,29 +100,32 @@ function UnifiedMessageContent({ message }: UnifiedMessageContentProps) {
     logger.debug('Content type field:', [displayMessage.content.type], 'UnifiedMessageContent');
   }
 
-  // 安全地渲染消息内容
-  let renderResult;
-  try {
-    renderResult = registry.render(displayMessage.content, displayMessage);
+  // 使用 useMemo 缓存渲染结果，只有当消息内容或 registry 变化时才重新计算
+  const renderResult = useMemo(() => {
+    try {
+      const result = registry.render(displayMessage.content, displayMessage);
 
-    // 使用智能日志系统，避免重复日志
-    logger.debug('Render result example:', [
-      renderResult && typeof renderResult === 'object' && '__isDefaultText' in renderResult
-        ? { __isDefaultText: true }
-        : { type: 'React component' }
-    ], 'UnifiedMessageContent');
-  } catch (error) {
-    logger.error('Error rendering message content:', [error], 'UnifiedMessageContent');
-    // 创建一个错误消息作为回退
-    renderResult = {
-      __isDefaultText: true,
-      content: `渲染错误: ${error instanceof Error ? error.message : '未知错误'}\n原始内容: ${
-        typeof displayMessage.content === 'string'
-          ? displayMessage.content
-          : JSON.stringify(displayMessage.content, null, 2)
-      }`
-    } as DefaultTextMark;
-  }
+      // 使用智能日志系统，避免重复日志
+      logger.debug('Render result example:', [
+        result && typeof result === 'object' && '__isDefaultText' in result
+          ? { __isDefaultText: true }
+          : { type: 'React component' }
+      ], 'UnifiedMessageContent');
+
+      return result;
+    } catch (error) {
+      logger.error('Error rendering message content:', [error], 'UnifiedMessageContent');
+      // 创建一个错误消息作为回退
+      return {
+        __isDefaultText: true,
+        content: `渲染错误: ${error instanceof Error ? error.message : '未知错误'}\n原始内容: ${
+          typeof displayMessage.content === 'string'
+            ? displayMessage.content
+            : JSON.stringify(displayMessage.content, null, 2)
+        }`
+      } as DefaultTextMark;
+    }
+  }, [displayMessage, registry]);
 
   // 检查是否是默认文本标记
   if (renderResult && typeof renderResult === 'object' && '__isDefaultText' in renderResult) {
@@ -123,6 +138,6 @@ function UnifiedMessageContent({ message }: UnifiedMessageContentProps) {
       {renderResult}
     </>
   );
-}
+});
 
 export default UnifiedMessageContent;

@@ -61,20 +61,27 @@ export class BackgroundTaskManager {
       } else {
         const startTime = Date.now();
 
-        for (const [taskId, task] of this.tasks.entries()) {
-          try {
-            console.log(`[Cycle ${cycleCount}] Executing task: ${taskId}`);
-            const taskStartTime = Date.now();
-            await task();
-            const taskDuration = Date.now() - taskStartTime;
-            console.log(`[Cycle ${cycleCount}] Task completed: ${taskId} (took ${taskDuration}ms)`);
-          } catch (error) {
-            console.error(`[Cycle ${cycleCount}] Error executing task ${taskId}:`, error);
-          }
-        }
+        // 使用 requestAnimationFrame 确保任务执行不会触发不必要的渲染
+        await new Promise<void>(resolve => {
+          // 使用 requestAnimationFrame 确保在下一帧执行，避免阻塞渲染
+          requestAnimationFrame(async () => {
+            for (const [taskId, task] of this.tasks.entries()) {
+              try {
+                console.log(`[Cycle ${cycleCount}] Executing task: ${taskId}`);
+                const taskStartTime = Date.now();
+                await task();
+                const taskDuration = Date.now() - taskStartTime;
+                console.log(`[Cycle ${cycleCount}] Task completed: ${taskId} (took ${taskDuration}ms)`);
+              } catch (error) {
+                console.error(`[Cycle ${cycleCount}] Error executing task ${taskId}:`, error);
+              }
+            }
 
-        const cycleDuration = Date.now() - startTime;
-        console.log(`[Cycle ${cycleCount}] All tasks completed in ${cycleDuration}ms`);
+            const cycleDuration = Date.now() - startTime;
+            console.log(`[Cycle ${cycleCount}] All tasks completed in ${cycleDuration}ms`);
+            resolve();
+          });
+        });
       }
 
       // 等待一段时间再执行下一轮任务
