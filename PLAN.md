@@ -121,13 +121,13 @@ class ErrorReportingEventHandler {
 
 ### 2.1 统一消息类型和转换逻辑
 
-- [ ] 创建`MessageTypeManager`类，集中管理所有消息类型定义
-- [ ] 实现统一的消息转换接口，如`convertToDisplayMessage`、`convertToLLMMessage`等
-- [ ] 移除重复的类型定义和转换逻辑
-- [ ] 使用类型守卫函数确保类型安全
+- [x] 创建`MessageTypeManager`类，集中管理所有消息类型定义
+- [x] 实现统一的消息转换接口，如`convertToDisplayMessage`、`convertToLLMMessage`等
+- [x] 移除重复的类型定义和转换逻辑
+- [x] 使用类型守卫函数确保类型安全
 
 ```typescript
-// 示例代码
+// 实现代码
 class MessageTypeManager {
   // 消息类型定义
   static readonly MESSAGE_TYPES = {
@@ -151,8 +151,16 @@ class MessageTypeManager {
   }
 
   // 统一的转换方法
-  static convertToLLMMessage(dbMessage: DatabaseMessage): LLMHistoryMessage {
+  static toDisplayMessage(dbMessage: DatabaseMessage): DisplayMessage {
     // 转换逻辑...
+  }
+
+  static toLLMHistoryMessage(dbMessage: DatabaseMessage): LLMHistoryMessage {
+    // 转换逻辑...
+  }
+
+  static createDatabaseMessage(params): Omit<DatabaseMessage, 'id' | 'created_at'> {
+    // 创建逻辑...
   }
 }
 ```
@@ -363,7 +371,7 @@ describe('Tool Call Integration', () => {
 1. **高优先级**
    - ✅ 引入依赖注入模式
    - ✅ 实现统一的错误报告机制，在UI界面显示错误
-   - 统一消息类型和转换逻辑
+   - ✅ 统一消息类型和转换逻辑
    - 为关键组件添加单元测试
 
 2. **中优先级**

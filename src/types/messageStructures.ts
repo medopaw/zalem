@@ -7,13 +7,9 @@
  * 3. 用于发送给大模型的消息结构 (LLMHistoryMessage)
  */
 
-import {
-  MessageContent,
-  isToolCallsContent
-} from './messageContentTypes';
-import { MessageType } from '../utils/MessageTypeRegistry';
+import { MessageContent } from './messageContentTypes';
 import { ChatMessage } from './chat';
-import logger from '../utils/logger';
+import { MessageTypeManager } from '../utils/MessageTypeManager';
 
 /**
  * 消息角色类型
@@ -126,326 +122,23 @@ export interface LLMHistoryMessage {
 
 /**
  * 从数据库消息创建显示消息
+ * @deprecated 使用 MessageTypeManager.toDisplayMessage 替代
  */
 export function toDisplayMessage(dbMessage: DatabaseMessage | ChatMessage): DisplayMessage {
-  let parsedContent: MessageContent;
-
-  // 使用智能日志系统，避免重复日志
-  logger.info('Converting DB message to display message:', [{
-    id: dbMessage.id,
-    role: dbMessage.role,
-    contentLength: dbMessage.content.length,
-    isJSON: dbMessage.content.trim().startsWith('{') && dbMessage.content.trim().endsWith('}')
-  }], 'messageStructures');
-
-  // 如果是tool角色或者assistant角色，尝试解析JSON内容
-  if (dbMessage.role === 'tool' || dbMessage.role === 'assistant') {
-    try {
-      // 检查内容是否已经是对象
-      let parsed;
-      if (typeof dbMessage.content === 'object') {
-        console.log('Content is already an object, no need to parse');
-        parsed = dbMessage.content;
-      } else {
-        // 检查内容是否看起来像JSON
-        const contentStr = String(dbMessage.content).trim();
-        if (contentStr.startsWith('{') && contentStr.endsWith('}')) {
-          // 使用智能日志系统，避免重复日志
-          logger.debug('Attempting to parse JSON content', undefined, 'messageStructures');
-          parsed = JSON.parse(contentStr);
-        } else {
-          // 不是JSON格式，直接使用原始内容
-          // 使用智能日志系统，避免重复日志
-          logger.debug('Content does not look like JSON, using as plain text', undefined, 'messageStructures');
-          parsedContent = dbMessage.content;
-          return {
-            id: dbMessage.id,
-            content: parsedContent,
-            role: dbMessage.role,
-            created_at: dbMessage.created_at,
-            user_id: dbMessage.user_id,
-            metadata: dbMessage.metadata
-          };
-        }
-      }
-
-      // 使用智能日志系统，避免重复日志
-      logger.debug('Successfully parsed JSON content:', [{
-        hasTypeField: parsed && typeof parsed === 'object' && 'type' in parsed,
-        type: parsed && typeof parsed === 'object' && 'type' in parsed ? parsed.type : 'none'
-      }], 'messageStructures');
-
-      // 检查是否包含type字段
-      if (parsed && typeof parsed === 'object' && 'type' in parsed) {
-        // 根据type字段创建适当的消息内容对象
-        switch (parsed.type) {
-          case 'tool_call':
-            // 验证工具调用消息
-            if ('name' in parsed && 'parameters' in parsed) {
-              parsedContent = {
-                type: MessageType.TOOL_CALL,
-                name: parsed.name,
-                parameters: parsed.parameters
-              };
-              console.log('Created tool_call content:', parsedContent);
-            } else {
-              console.log('Invalid tool_call content, missing required fields');
-              parsedContent = dbMessage.content;
-            }
-            break;
-
-          case 'tool_result':
-            // 验证工具结果消息
-            if ('tool_call_id' in parsed && 'status' in parsed && 'message' in parsed) {
-              // 使用枚举值确保类型安全
-              parsedContent = {
-                type: MessageType.TOOL_RESULT,
-                tool_call_id: parsed.tool_call_id,
-                status: parsed.status as 'success' | 'error',
-                message: parsed.message,
-                details: parsed.details
-              };
-              console.log('Created tool_result content:', parsedContent);
-              console.log('Tool result content type:', typeof parsedContent);
-              console.log('Tool result content keys:', Object.keys(parsedContent));
-            } else {
-              console.log('Invalid tool_result content, missing required fields');
-              parsedContent = dbMessage.content;
-            }
-            break;
-
-          case 'tool_calls':
-            // 验证多个工具调用消息
-            if ('calls' in parsed && Array.isArray(parsed.calls)) {
-              parsedContent = {
-                type: MessageType.TOOL_CALLS,
-                calls: parsed.calls
-              };
-              console.log('Created tool_calls content:', parsedContent);
-            } else {
-              console.log('Invalid tool_calls content, missing required fields');
-              parsedContent = dbMessage.content;
-            }
-            break;
-
-          case 'data_request':
-            // 验证数据请求消息
-            if ('fields' in parsed && Array.isArray(parsed.fields)) {
-              parsedContent = {
-                type: MessageType.DATA_REQUEST,
-                fields: parsed.fields
-              };
-              console.log('Created data_request content:', parsedContent);
-            } else {
-              console.log('Invalid data_request content, missing required fields');
-              parsedContent = dbMessage.content;
-            }
-            break;
-
-          case 'data_response':
-            // 验证数据响应消息
-            if ('data' in parsed && typeof parsed.data === 'object') {
-              parsedContent = {
-                type: MessageType.DATA_RESPONSE,
-                data: parsed.data
-              };
-              console.log('Created data_response content:', parsedContent);
-            } else {
-              console.log('Invalid data_response content, missing required fields');
-              parsedContent = dbMessage.content;
-            }
-            break;
-
-          case 'text':
-            // 验证文本消息
-            if ('text' in parsed && typeof parsed.text === 'string') {
-              parsedContent = {
-                type: MessageType.TEXT,
-                text: parsed.text
-              };
-              console.log('Created text content:', parsedContent);
-            } else {
-              console.log('Invalid text content, missing required fields');
-              parsedContent = dbMessage.content;
-            }
-            break;
-
-          default:
-            console.log(`Unknown message type: ${parsed.type}, creating error message`);
-            parsedContent = {
-              type: MessageType.ERROR,
-              message: `无法识别的消息类型: ${parsed.type}`,
-              originalContent: JSON.stringify(parsed, null, 2)
-            };
-        }
-      } else {
-        // 如果没有type字段，创建错误消息
-        console.log('No type field in parsed content, creating error message');
-        parsedContent = {
-          type: MessageType.ERROR,
-          message: '无法识别的消息格式: 缺少类型字段',
-          originalContent: JSON.stringify(parsed, null, 2)
-        };
-      }
-    } catch (e) {
-      // 如果解析失败，但内容看起来像JSON，创建错误消息
-      console.error('JSON解析失败:', e);
-      console.log('原始内容:', dbMessage.content);
-
-      if (dbMessage.content.trim().startsWith('{') && dbMessage.content.trim().endsWith('}')) {
-        console.log('内容看起来像JSON，创建错误消息');
-        parsedContent = {
-          type: MessageType.ERROR,
-          message: 'JSON解析失败: 无效的JSON格式',
-          originalContent: dbMessage.content
-        };
-        console.log('创建的错误消息内容:', parsedContent);
-      } else {
-        // 否则视为纯文本
-        console.log('内容不是JSON格式，视为纯文本');
-        parsedContent = dbMessage.content;
-      }
-    }
-  } else {
-    // 如果是user或system角色，直接使用原始内容
-    parsedContent = dbMessage.content;
-  }
-
-  return {
-    id: dbMessage.id,
-    content: parsedContent,
-    role: dbMessage.role,
-    created_at: dbMessage.created_at,
-    user_id: dbMessage.user_id,
-    metadata: dbMessage.metadata
-  };
+  return MessageTypeManager.toDisplayMessage(dbMessage as DatabaseMessage);
 }
 
 /**
  * 从数据库消息创建LLM历史消息
+ * @deprecated 使用 MessageTypeManager.toLLMHistoryMessage 替代
  */
 export function toLLMHistoryMessage(dbMessage: DatabaseMessage): LLMHistoryMessage {
-  console.log('Converting DB message to LLM history message:', {
-    id: dbMessage.id,
-    role: dbMessage.role,
-    tool_call_id: dbMessage.tool_call_id,
-    content_preview: dbMessage.content.substring(0, 100) + (dbMessage.content.length > 100 ? '...' : ''),
-    send_to_llm: dbMessage.send_to_llm
-  });
-
-  // 基本消息结构
-  const llmMessage: LLMHistoryMessage = {
-    role: dbMessage.role,
-    content: dbMessage.content
-  };
-
-  // 如果是tool角色，添加tool_call_id
-  if (dbMessage.role === 'tool' && dbMessage.tool_call_id) {
-    llmMessage.tool_call_id = dbMessage.tool_call_id;
-    console.log('Added tool_call_id to LLM message:', dbMessage.tool_call_id);
-  }
-
-  // 特殊处理工具调用结果消息
-  if (dbMessage.role === 'tool' && dbMessage.tool_call_id) {
-    // 对于工具角色的消息，尝试解析内容
-    console.log('Processing tool message with tool_call_id:', dbMessage.tool_call_id);
-    console.log('Tool message content:', dbMessage.content);
-
-    try {
-      // 尝试解析JSON内容
-      let parsedContent: any;
-
-      try {
-        parsedContent = JSON.parse(dbMessage.content);
-        console.log('Successfully parsed tool message content as JSON:', parsedContent);
-      } catch (parseError) {
-        console.log('Content is not valid JSON, using as plain text');
-
-        // 如果不是JSON，直接使用原始内容
-        return {
-          role: 'tool',
-          content: dbMessage.content,
-          tool_call_id: dbMessage.tool_call_id
-        };
-      }
-
-      // 如果是工具调用结果类型，使用message字段作为content
-      if (parsedContent && parsedContent.type === 'tool_result' && parsedContent.message) {
-        console.log('Found tool_result message with message:', parsedContent.message);
-
-        // 设置新内容
-        llmMessage.content = parsedContent.message;
-
-        console.log('Final tool result message for LLM:', llmMessage);
-
-        // 确保返回正确的格式
-        return {
-          role: 'tool',
-          content: parsedContent.message,
-          tool_call_id: dbMessage.tool_call_id
-        };
-      } else {
-        console.log('Tool message is not a tool_result or missing message field');
-
-        // 如果不是工具调用结果类型，使用原始内容
-        return {
-          role: 'tool',
-          content: dbMessage.content,
-          tool_call_id: dbMessage.tool_call_id
-        };
-      }
-    } catch (error) {
-      // 如果解析失败，保持原始内容
-      console.error('Error in toLLMHistoryMessage:', error);
-      console.error('Using original content as fallback');
-
-      return {
-        role: 'tool',
-        content: dbMessage.content,
-        tool_call_id: dbMessage.tool_call_id
-      };
-    }
-  }
-  // 处理助手消息中的工具调用
-  else if (dbMessage.role === 'assistant') {
-    try {
-      const parsedContent = JSON.parse(dbMessage.content);
-
-      // 使用isToolCallsContent类型守卫函数验证
-      if (isToolCallsContent(parsedContent)) {
-        console.log('Found tool_calls message:', parsedContent);
-
-        // 将内容设为null，添加tool_calls
-        llmMessage.content = null;
-        llmMessage.tool_calls = parsedContent.calls.map((call) => ({
-          id: call.id || `call_${Math.random().toString(36).substring(2)}`,
-          type: 'function',
-          function: {
-            name: call.name,
-            arguments: JSON.stringify(call.parameters)
-          }
-        }));
-        console.log('Converted tool calls message for LLM:', llmMessage);
-
-        // 确保返回正确的格式
-        return {
-          role: 'assistant',
-          content: null,
-          tool_calls: llmMessage.tool_calls
-        };
-      }
-    } catch (error) {
-      // 如果解析失败，保持原始内容
-      console.log('Failed to parse assistant JSON in toLLMHistoryMessage:', error);
-    }
-  }
-
-  // 如果没有特殊处理，返回基本消息结构
-  return llmMessage;
+  return MessageTypeManager.toLLMHistoryMessage(dbMessage);
 }
 
 /**
  * 创建新的数据库消息
+ * @deprecated 使用 MessageTypeManager.createDatabaseMessage 替代
  */
 export function createDatabaseMessage({
   content,
@@ -468,18 +161,15 @@ export function createDatabaseMessage({
   sequence?: number;
   metadata?: Record<string, unknown>;
 }): Omit<DatabaseMessage, 'id' | 'created_at'> {
-  // 如果内容是对象，转换为JSON字符串
-  const contentStr = typeof content === 'object' ? JSON.stringify(content) : content;
-
-  return {
-    content: contentStr,
+  return MessageTypeManager.createDatabaseMessage({
+    content,
     role,
-    user_id: userId,
-    thread_id: threadId,
-    is_visible: isVisible,
-    send_to_llm: sendToLLM,
-    tool_call_id: toolCallId,
+    userId,
+    threadId,
+    isVisible,
+    sendToLLM,
+    toolCallId,
     sequence,
     metadata
-  };
+  });
 }
