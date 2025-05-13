@@ -3,14 +3,17 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { DebugProvider } from './contexts/DebugContext';
+import { ErrorReportProvider } from './contexts/ErrorReportContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+import ErrorNotification from './components/ErrorNotification';
 import { initBackgroundTasks } from './services/background/initBackgroundTasks';
 import { initializeSystem } from './utils/initializeSystem';
+import { getErrorReporter, ErrorLevel } from './services/error/ErrorReporter';
 
 const queryClient = new QueryClient();
 
@@ -37,10 +40,14 @@ function App() {
         // 显示错误信息到控制台
         console.error('Error during system initialization:', error);
 
-        // 这里可以添加代码，向用户显示错误信息
-        // 例如，可以设置一个全局状态，然后在UI中显示错误信息
-        // 或者使用toast/notification组件显示错误
-        alert(`系统初始化失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        // 使用错误报告服务报告错误
+        getErrorReporter().reportToUI({
+          title: '系统初始化失败',
+          message: error instanceof Error ? error.message : '未知错误',
+          level: ErrorLevel.CRITICAL,
+          details: error instanceof Error ? error.stack : undefined,
+          context: 'SystemInitialization'
+        });
       }
     }, 2000); // 延长延迟时间到2秒，确保所有组件已完全加载
 
@@ -52,30 +59,34 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <DebugProvider>
-          <Router>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/home" replace />} />
-                <Route
-                  path="home"
-                  element={
-                    <ProtectedRoute>
-                      <Home />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="admin"
-                  element={
-                    <AdminRoute>
-                      <Admin />
-                    </AdminRoute>
-                  }
-                />
-              </Route>
-            </Routes>
-          </Router>
+          <ErrorReportProvider>
+            <Router>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<Navigate to="/home" replace />} />
+                  <Route
+                    path="home"
+                    element={
+                      <ProtectedRoute>
+                        <Home />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="admin"
+                    element={
+                      <AdminRoute>
+                        <Admin />
+                      </AdminRoute>
+                    }
+                  />
+                </Route>
+              </Routes>
+              {/* 全局错误通知组件 */}
+              <ErrorNotification />
+            </Router>
+          </ErrorReportProvider>
         </DebugProvider>
       </AuthProvider>
     </QueryClientProvider>

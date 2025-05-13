@@ -7,11 +7,14 @@
 import {
   MessageEventType,
   ToolCallEventData,
-  ToolResultData
+  ToolResultData,
+  MessageEvent
 } from '../../types/messaging';
 import { getMessageEventBus } from '../messaging/MessageEventBus';
 import { getToolCallProcessorRegistry } from '../messaging/ToolCallProcessorRegistry';
 import { IMessageRepository } from '../../repositories/IMessageRepository';
+import { withErrorHandling } from '../error/ErrorHandlingEnhancer';
+import logger from '../../utils/logger';
 
 /**
  * 工具调用事件处理器
@@ -33,14 +36,23 @@ export class ToolCallEventHandler {
   private initialize(): void {
     const eventBus = getMessageEventBus();
 
-    // 订阅工具调用事件
-    eventBus.subscribe(MessageEventType.TOOL_CALL_RECEIVED, async (event) => {
+    // 创建带错误处理的事件处理函数
+    const handleEvent = async (event: MessageEvent): Promise<void> => {
       if (event.type === MessageEventType.TOOL_CALL_RECEIVED) {
-        await this.handleToolCallEvent(event.data);
+        await this.handleToolCallEvent(event.data as ToolCallEventData);
       }
-    });
+    };
 
-    console.log('[ToolCallEventHandler] Initialized');
+    // 使用错误处理增强器包装事件处理函数
+    const enhancedHandler = withErrorHandling(
+      handleEvent,
+      'ToolCallEventHandler'
+    );
+
+    // 订阅工具调用事件
+    eventBus.subscribe(MessageEventType.TOOL_CALL_RECEIVED, enhancedHandler);
+
+    logger.info('[ToolCallEventHandler] Initialized with error handling', undefined, 'ToolCallEventHandler');
   }
 
   /**
@@ -98,12 +110,18 @@ export class ToolCallEventHandler {
   ): void {
     const eventBus = getMessageEventBus();
 
-    console.log('[ToolCallEventHandler] Publishing tool result event:', {
-      toolCallId: toolResult.toolCallId,
-      status: toolResult.status,
-      message: toolResult.message
-    });
+    // 使用日志系统记录事件
+    logger.info(
+      '[ToolCallEventHandler] Publishing tool result event',
+      [{
+        toolCallId: toolResult.toolCallId,
+        status: toolResult.status,
+        message: toolResult.message
+      }],
+      'ToolCallEventHandler'
+    );
 
+    // 发布事件
     eventBus.publish({
       type: MessageEventType.TOOL_RESULT_SENT,
       data: {

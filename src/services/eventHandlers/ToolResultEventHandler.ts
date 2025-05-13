@@ -12,6 +12,9 @@ import {
 import { getMessageEventBus } from '../messaging/MessageEventBus';
 import { IMessageRepository } from '../../repositories/IMessageRepository';
 import { AIService } from '../ai/AIService';
+import { withErrorHandling } from '../error/ErrorHandlingEnhancer';
+import { getErrorReporter, ErrorLevel } from '../error/ErrorReporter';
+import logger from '../../utils/logger';
 
 /**
  * 工具调用结果事件处理器
@@ -35,84 +38,114 @@ export class ToolResultEventHandler {
   private initialize(): void {
     const eventBus = getMessageEventBus();
 
-    console.log('[ToolResultEventHandler] Initializing event handler...');
+    logger.info('[ToolResultEventHandler] Initializing event handler...', undefined, 'ToolResultEventHandler');
 
     // 直接在全局对象上存储处理器实例，确保它不会被垃圾回收
-    (window as any).__toolResultEventHandler = this;
+    const globalWindow = window as Record<string, unknown>;
+    globalWindow.__toolResultEventHandler = this;
 
-    // 订阅工具调用结果事件 - 使用箭头函数保持this引用
-    const handleEvent = async (event: any) => {
+    // 创建带错误处理的事件处理函数
+    const handleEvent = async (event: MessageEvent): Promise<void> => {
       if (event.type === MessageEventType.TOOL_RESULT_SENT) {
-        console.log('[ToolResultEventHandler] Received TOOL_RESULT_SENT event:', event.data);
-        try {
-          await this.handleToolResultEvent(event);
-        } catch (error) {
-          console.error('[ToolResultEventHandler] Error handling event:', error);
-        }
+        logger.info(
+          '[ToolResultEventHandler] Received TOOL_RESULT_SENT event',
+          [{ eventData: event.data }],
+          'ToolResultEventHandler'
+        );
+        await this.handleToolResultEvent(event);
       }
     };
 
+    // 使用错误处理增强器包装事件处理函数
+    const enhancedHandler = withErrorHandling(
+      handleEvent,
+      'ToolResultEventHandler'
+    );
+
     // 保存处理函数引用，防止被垃圾回收
-    (window as any).__toolResultEventHandlerFn = handleEvent;
+    globalWindow.__toolResultEventHandlerFn = enhancedHandler;
 
     // 订阅事件
-    const unsubscribe = eventBus.subscribe(MessageEventType.TOOL_RESULT_SENT, handleEvent);
+    const unsubscribe = eventBus.subscribe(MessageEventType.TOOL_RESULT_SENT, enhancedHandler);
 
     // 保存取消订阅函数，防止被垃圾回收
-    (window as any).__toolResultEventHandlerUnsubscribe = unsubscribe;
+    globalWindow.__toolResultEventHandlerUnsubscribe = unsubscribe;
 
     // 检查是否成功订阅了事件
-    const eventBusWithListeners = eventBus as unknown as { listeners: Map<MessageEventType, Set<any>> };
-    const hasListener = eventBusWithListeners.listeners &&
-                        eventBusWithListeners.listeners.has(MessageEventType.TOOL_RESULT_SENT);
+    const eventBusWithMethods = eventBus as unknown as {
+      hasListeners(eventType: MessageEventType): boolean;
+      getRegisteredEventTypes(): MessageEventType[];
+      getListenerCount(eventType: MessageEventType): number;
+    };
 
-    console.log('[ToolResultEventHandler] Initialized, has listener:', hasListener);
+    // 检查是否有监听器处理 TOOL_RESULT_SENT 事件
+    const hasListener = typeof eventBusWithMethods.hasListeners === 'function'
+      ? eventBusWithMethods.hasListeners(MessageEventType.TOOL_RESULT_SENT)
+      : false;
 
-    // 打印所有已注册的事件类型
-    if (eventBusWithListeners.listeners) {
-      const registeredTypes = Array.from(eventBusWithListeners.listeners.keys());
-      console.log('[ToolResultEventHandler] All registered event types:', registeredTypes);
+    // 获取监听器数量
+    const listenerCount = typeof eventBusWithMethods.getListenerCount === 'function'
+      ? eventBusWithMethods.getListenerCount(MessageEventType.TOOL_RESULT_SENT)
+      : -1;
 
-      // 打印TOOL_RESULT_SENT事件的监听器数量
-      const toolResultListeners = eventBusWithListeners.listeners.get(MessageEventType.TOOL_RESULT_SENT);
-      console.log('[ToolResultEventHandler] TOOL_RESULT_SENT listeners count:', toolResultListeners ? toolResultListeners.size : 0);
-    }
+    // 获取所有已注册的事件类型
+    const registeredEventTypes = typeof eventBusWithMethods.getRegisteredEventTypes === 'function'
+      ? eventBusWithMethods.getRegisteredEventTypes()
+      : [];
 
-    // 如果没有成功订阅，尝试重新订阅
+    logger.info(
+      '[ToolResultEventHandler] Initialization status',
+      [{
+        hasListener,
+        listenerCount,
+        registeredEventTypes
+      }],
+      'ToolResultEventHandler'
+    );
+
+    // 如果没有成功订阅，报告错误
     if (!hasListener) {
-      console.error('[ToolResultEventHandler] Failed to subscribe to TOOL_RESULT_SENT event, retrying with direct approach...');
+      const errorMessage = '[ToolResultEventHandler] Failed to subscribe to TOOL_RESULT_SENT event';
+      logger.error(errorMessage, undefined, 'ToolResultEventHandler');
 
-      // 直接修改事件总线的监听器集合
-      if (eventBusWithListeners.listeners) {
-        if (!eventBusWithListeners.listeners.has(MessageEventType.TOOL_RESULT_SENT)) {
-          eventBusWithListeners.listeners.set(MessageEventType.TOOL_RESULT_SENT, new Set());
-        }
-
-        const listeners = eventBusWithListeners.listeners.get(MessageEventType.TOOL_RESULT_SENT)!;
-        listeners.add(handleEvent);
-
-        console.log('[ToolResultEventHandler] Directly added listener to event bus');
-      }
+      // 报告错误
+      getErrorReporter().reportToUI({
+        title: '事件处理器初始化失败',
+        message: '工具调用结果处理器无法订阅事件，可能导致工具调用结果无法正确处理',
+        level: ErrorLevel.ERROR,
+        context: 'ToolResultEventHandler'
+      });
     }
 
     // 添加全局监听器作为备份
-    const globalUnsubscribe = eventBus.subscribeAll((event) => {
+    const globalHandler = async (event: MessageEvent): Promise<void> => {
       if (event.type === MessageEventType.TOOL_RESULT_SENT) {
-        console.log('[ToolResultEventHandler] Received TOOL_RESULT_SENT event via global listener:', event.data);
-        this.handleToolResultEvent(event).catch(error => {
-          console.error('[ToolResultEventHandler] Error handling event in global listener:', error);
-        });
+        logger.info(
+          '[ToolResultEventHandler] Received TOOL_RESULT_SENT event via global listener',
+          [{ eventData: event.data }],
+          'ToolResultEventHandler'
+        );
+        await this.handleToolResultEvent(event);
       }
-    });
+    };
+
+    // 使用错误处理增强器包装全局事件处理函数
+    const enhancedGlobalHandler = withErrorHandling(
+      globalHandler,
+      'ToolResultEventHandler.global'
+    );
+
+    // 订阅全局事件
+    const globalUnsubscribe = eventBus.subscribeAll(enhancedGlobalHandler);
 
     // 保存全局取消订阅函数
-    (window as any).__toolResultEventHandlerGlobalUnsubscribe = globalUnsubscribe;
+    globalWindow.__toolResultEventHandlerGlobalUnsubscribe = globalUnsubscribe;
 
-    console.log('[ToolResultEventHandler] Initialization complete with backup global listener');
+    logger.info('[ToolResultEventHandler] Initialization complete with backup global listener', undefined, 'ToolResultEventHandler');
 
     // 添加一个测试函数，可以在控制台手动触发
-    (window as any).testToolResultEvent = (threadId: string, userId: string, toolCallId: string) => {
-      console.log('[ToolResultEventHandler] Manually triggering tool result event');
+    globalWindow.testToolResultEvent = (threadId: string, userId: string, toolCallId: string) => {
+      logger.info('[ToolResultEventHandler] Manually triggering tool result event', undefined, 'ToolResultEventHandler');
       eventBus.publish({
         type: MessageEventType.TOOL_RESULT_SENT,
         data: {
@@ -138,7 +171,11 @@ export class ToolResultEventHandler {
 
     const { threadId, userId, toolResult } = event.data as ToolResultEventData;
 
-    console.log(`[ToolResultEventHandler] Processing tool result for tool call ID: ${toolResult.toolCallId}`, toolResult);
+    logger.info(
+      `[ToolResultEventHandler] Processing tool result for tool call ID: ${toolResult.toolCallId}`,
+      [{ toolResult }],
+      'ToolResultEventHandler'
+    );
 
     try {
       // 注意：我们不再保存工具调用结果消息，因为它已经在NicknameHandler中保存了
@@ -309,6 +346,16 @@ export class ToolResultEventHandler {
     content: string
   ): void {
     const eventBus = getMessageEventBus();
+
+    logger.info(
+      '[ToolResultEventHandler] Publishing assistant message event',
+      [{
+        messageId,
+        threadId,
+        contentPreview: content.substring(0, 100) + (content.length > 100 ? '...' : '')
+      }],
+      'ToolResultEventHandler'
+    );
 
     eventBus.publish({
       type: MessageEventType.ASSISTANT_MESSAGE_RECEIVED,
