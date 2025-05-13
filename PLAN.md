@@ -21,11 +21,11 @@ interface IEventBusProvider {
 
 class EventBusProvider implements IEventBusProvider {
   private eventBus: IMessageEventBus;
-  
+
   constructor() {
     this.eventBus = new MessageEventBus();
   }
-  
+
   getEventBus(): IMessageEventBus {
     return this.eventBus;
   }
@@ -43,53 +43,67 @@ class EventBusProvider implements IEventBusProvider {
 // 示例代码
 class EventHandlerRegistry {
   private handlers: Map<string, any> = new Map();
-  
+
   registerHandler(type: string, handler: any): void {
     this.handlers.set(type, handler);
   }
-  
+
   getHandler(type: string): any {
     return this.handlers.get(type);
   }
 }
 ```
 
-### 1.3 增强错误处理和恢复机制
+### 1.3 增强错误处理和用户反馈
 
 - [ ] 为每个事件处理器添加专门的错误处理逻辑
-- [ ] 实现事件处理重试机制，包括指数退避策略
+- [ ] 实现统一的错误报告机制，直接向用户展示错误信息
 - [ ] 添加事件处理超时机制，避免处理器长时间阻塞
-- [ ] 实现事件处理状态监控，记录成功率和失败原因
+- [ ] 实现事件处理状态监控，记录错误类型和频率
 
 ```typescript
 // 示例代码
-class RetryableEventHandler {
-  private maxRetries: number = 3;
-  private backoffFactor: number = 1.5;
-  
-  async handleWithRetry(event: MessageEvent): Promise<void> {
-    let retries = 0;
-    let delay = 100; // 初始延迟100ms
-    
-    while (retries <= this.maxRetries) {
-      try {
-        await this.handleEvent(event);
-        return; // 成功处理，退出循环
-      } catch (error) {
-        retries++;
-        if (retries > this.maxRetries) {
-          throw error; // 超过最大重试次数，抛出错误
-        }
-        
-        // 计算下一次重试的延迟时间
-        delay = delay * this.backoffFactor;
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+class ErrorReportingEventHandler {
+  private errorReporter: ErrorReporter;
+
+  constructor(errorReporter: ErrorReporter) {
+    this.errorReporter = errorReporter;
+  }
+
+  async handleEvent(event: MessageEvent): Promise<void> {
+    try {
+      // 尝试处理事件
+      await this.processEvent(event);
+    } catch (error) {
+      // 记录错误日志
+      console.error(`[EventHandler] Error handling event ${event.type}:`, error);
+
+      // 向用户报告错误
+      this.errorReporter.reportToUI({
+        title: '操作失败',
+        message: `处理${this.getEventName(event.type)}时出错: ${error.message}`,
+        level: 'error',
+        details: error.stack,
+        actionType: event.type
+      });
+
+      // 直接抛出错误，不进行重试
+      throw error;
     }
   }
-  
-  private async handleEvent(event: MessageEvent): Promise<void> {
+
+  private async processEvent(event: MessageEvent): Promise<void> {
     // 具体的事件处理逻辑
+  }
+
+  private getEventName(eventType: string): string {
+    // 将事件类型转换为用户友好的名称
+    const eventNames = {
+      'tool_result_sent': '工具调用结果',
+      'user_message_sent': '用户消息',
+      // 其他事件类型...
+    };
+    return eventNames[eventType] || '未知操作';
   }
 }
 ```
@@ -122,7 +136,7 @@ class MessageTypeManager {
     TOOL_RESULT: 'tool_result',
     // 其他类型...
   };
-  
+
   // 类型守卫函数
   static isToolResult(content: any): content is ToolResultContent {
     return (
@@ -135,7 +149,7 @@ class MessageTypeManager {
       'message' in content
     );
   }
-  
+
   // 统一的转换方法
   static convertToLLMMessage(dbMessage: DatabaseMessage): LLMHistoryMessage {
     // 转换逻辑...
@@ -157,44 +171,59 @@ class MessageSender {
     private messageRepository: IMessageRepository,
     private aiService: AIService
   ) {}
-  
+
   async sendToLLM(threadId: string, userId: string): Promise<LLMMessage> {
     // 1. 获取消息历史
     const { messages } = await this.messageRepository.getLLMHistoryMessages(threadId);
-    
+
     // 2. 发送给大模型
     return this.aiService.sendMessage(messages);
   }
-  
+
   async sendToolResult(toolResult: ToolResultData, threadId: string, userId: string): Promise<void> {
     // 1. 保存工具调用结果
     await this.saveToolResult(toolResult, threadId, userId);
-    
+
     // 2. 发送给大模型并处理响应
     const response = await this.sendToLLM(threadId, userId);
-    
+
     // 3. 保存大模型响应
     await this.saveAssistantResponse(response, threadId, userId);
   }
 }
 ```
 
-### 2.3 增强消息验证和日志记录
+### 2.3 增强消息验证和错误反馈
 
 - [ ] 实现消息验证器，确保消息格式正确
 - [ ] 添加详细的日志记录，包括消息ID、类型、内容摘要等
-- [ ] 实现消息处理性能监控，记录处理时间和资源消耗
+- [ ] 实现消息处理错误的UI反馈机制，直接向用户展示错误信息
 - [ ] 添加消息处理异常监控，记录错误类型和频率
 
 ```typescript
 // 示例代码
 class MessageValidator {
-  static validateToolResult(content: any): boolean {
+  constructor(private errorReporter: ErrorReporter) {}
+
+  validateToolResult(content: any, context: string): boolean {
     if (!MessageTypeManager.isToolResult(content)) {
+      const error = new Error('无效的工具调用结果格式');
+
+      // 记录错误日志
       console.error('Invalid tool result format:', content);
+
+      // 向用户报告错误
+      this.errorReporter.reportToUI({
+        title: '消息格式错误',
+        message: '工具调用结果格式无效，无法处理该消息',
+        level: 'error',
+        details: JSON.stringify(content, null, 2),
+        context: context
+      });
+
       return false;
     }
-    
+
     // 更多验证逻辑...
     return true;
   }
@@ -208,9 +237,12 @@ class MessageLogger {
       summary: this.getSummary(message)
     });
   }
-  
+
   private static getSummary(message: any): string {
     // 生成消息摘要...
+    return typeof message.content === 'string'
+      ? message.content.substring(0, 50)
+      : JSON.stringify(message.content).substring(0, 50);
   }
 }
 ```
@@ -237,22 +269,22 @@ class MessageLogger {
 // 示例测试代码
 describe('MessageEventBus', () => {
   let eventBus: MessageEventBus;
-  
+
   beforeEach(() => {
     eventBus = new MessageEventBus();
   });
-  
+
   test('should publish and receive events', () => {
     // 准备
     const listener = vi.fn();
     eventBus.subscribe(MessageEventType.TOOL_RESULT_SENT, listener);
-    
+
     // 执行
     eventBus.publish({
       type: MessageEventType.TOOL_RESULT_SENT,
       data: { /* 测试数据 */ }
     });
-    
+
     // 验证
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener.mock.calls[0][0].type).toBe(MessageEventType.TOOL_RESULT_SENT);
@@ -272,20 +304,20 @@ describe('MessageEventBus', () => {
 describe('Tool Call Integration', () => {
   let messageService: MessageService;
   let aiService: AIService;
-  
+
   beforeEach(() => {
     // 设置测试环境...
   });
-  
+
   test('should process tool call and send result to LLM', async () => {
     // 准备
     const toolCall = { /* 测试数据 */ };
     const mockLLMResponse = { /* 模拟大模型响应 */ };
     aiService.sendMessage = vi.fn().mockResolvedValue(mockLLMResponse);
-    
+
     // 执行
     await messageService.handleToolCall(toolCall, 'thread-1', 'user-1');
-    
+
     // 验证
     expect(aiService.sendMessage).toHaveBeenCalledTimes(1);
     // 验证发送给大模型的消息中包含工具调用结果...
@@ -312,11 +344,13 @@ describe('Tool Call Integration', () => {
 ### 第一阶段（1-2周）
 - 完成事件处理系统的基础重构
 - 实现依赖注入模式
+- 实现统一的错误报告机制，在UI界面显示错误
 - 添加基本的单元测试
 
 ### 第二阶段（2-3周）
 - 完成消息处理流程的改进
 - 统一消息类型和转换逻辑
+- 增强消息验证和错误处理
 - 增加集成测试覆盖率
 
 ### 第三阶段（2-3周）
@@ -328,12 +362,13 @@ describe('Tool Call Integration', () => {
 
 1. **高优先级**
    - 引入依赖注入模式
+   - 实现统一的错误报告机制，在UI界面显示错误
    - 统一消息类型和转换逻辑
    - 为关键组件添加单元测试
 
 2. **中优先级**
    - 简化事件处理器初始化流程
-   - 增强错误处理和恢复机制
+   - 增强消息验证和错误处理
    - 实现集成测试
 
 3. **低优先级**
