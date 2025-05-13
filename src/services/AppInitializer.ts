@@ -12,8 +12,10 @@ import { SupabaseThreadRepository } from '../repositories/SupabaseThreadReposito
 import { SupabasePregeneratedMessageRepository } from '../repositories/SupabasePregeneratedMessageRepository';
 import { initializeToolProcessors } from './toolProcessors/ToolProcessorFactory';
 import { createMessageService } from './messaging/MessageService';
+import { createMessageSender } from './messaging/MessageSender';
 import { getToolCallProcessorRegistry } from './messaging/ToolCallProcessorRegistry';
 import { IMessageService } from '../types/messaging';
+import { IMessageSender } from '../types/messaging/IMessageSender';
 import {
   initializeEventHandlers,
   createMessageEventHandlerRegistry
@@ -23,6 +25,7 @@ import { getEventBusProvider } from './messaging/EventBusProvider';
 // 存储初始化状态
 let isInitialized = false;
 let messageService: IMessageService | null = null;
+let messageSender: IMessageSender | null = null;
 
 /**
  * 初始化应用
@@ -114,7 +117,7 @@ export async function initializeApp(apiKey: string): Promise<void> {
 
     console.log('[AppInitializer] Event handlers initialization process completed');
 
-    // 6. 创建消息服务
+    // 6. 创建消息服务和消息发送器
     // 获取事件总线实例
     const eventBus = getEventBusProvider().getEventBus();
 
@@ -125,6 +128,16 @@ export async function initializeApp(apiKey: string): Promise<void> {
       aiService,
       eventBus
     );
+
+    // 创建消息发送器
+    messageSender = createMessageSender(
+      messageRepository,
+      aiService,
+      eventBus
+    );
+
+    // 为了向后兼容，保留全局引用
+    (window as any).__messageSender = messageSender;
 
     isInitialized = true;
     console.log('[AppInitializer] App initialized successfully');
@@ -142,6 +155,16 @@ export function getMessageService(): IMessageService {
     throw new Error('App not initialized. Call initializeApp first.');
   }
   return messageService;
+}
+
+/**
+ * 获取消息发送器实例
+ */
+export function getMessageSender(): IMessageSender {
+  if (!messageSender) {
+    throw new Error('App not initialized. Call initializeApp first.');
+  }
+  return messageSender;
 }
 
 /**

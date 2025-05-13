@@ -11,5 +11,17 @@ import { SYSTEM_PROMPT } from '../constants/prompts';
 // 重新导出 AIService 为 ChatService，保持向后兼容
 export { AIService as ChatService };
 export { initializeAIService as initializeChatService };
-export { getAIService as getChatService };
 export { SYSTEM_PROMPT };
+
+/**
+ * 获取聊天服务实例
+ * @returns 聊天服务实例
+ * @throws {Error} 如果服务未初始化
+ */
+export function getChatService(): AIService {
+  try {
+    return getAIService();
+  } catch (_) {
+    throw new Error('Chat service not initialized');
+  }
+}

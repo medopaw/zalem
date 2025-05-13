@@ -167,8 +167,8 @@ class MessageTypeManager {
 
 ### 2.2 简化消息发送流程
 
-- [ ] 创建`MessageSender`类，负责所有消息的发送逻辑
-- [ ] 实现`sendToLLM`、`sendToUI`等方法
+- [x] 创建`MessageSender`类，负责所有消息的发送逻辑
+- [x] 实现`sendToLLM`、`sendUserMessage`、`sendToolResult`等方法
 - [ ] 统一处理工具调用和工具调用结果的发送逻辑
 - [ ] 添加消息发送队列，确保消息按顺序发送
 

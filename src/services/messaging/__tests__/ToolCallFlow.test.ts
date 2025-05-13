@@ -79,7 +79,7 @@ describe('Tool Call Flow', () => {
     messageService = new MessageService(
       mockMessageRepository,
       mockThreadRepository,
-      mockToolProcessorRegistry,
+      eventBus,
       mockAIService
     );
   });

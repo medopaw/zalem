@@ -323,7 +323,7 @@ describe('Task Priority Update', () => {
     // Verify the success message was generated
     const lastMessage = messages[messages.length - 1];
     const content = JSON.parse(lastMessage.content);
-    expect(content.type).toBe('execution_result');
+    expect(content.type).toBe('tool_result');
     expect(content.status).toBe('success');
   });
 
@@ -410,7 +410,7 @@ describe('Task Priority Update', () => {
     // Verify error message was generated
     const lastMessage = messages[messages.length - 1];
     const content = JSON.parse(lastMessage.content);
-    expect(content.type).toBe('execution_result');
+    expect(content.type).toBe('tool_result');
     expect(content.status).toBe('error');
     expect(content.message).toBe('Database error');
   });
