@@ -14,7 +14,11 @@ import { initializeToolProcessors } from './toolProcessors/ToolProcessorFactory'
 import { createMessageService } from './messaging/MessageService';
 import { getToolCallProcessorRegistry } from './messaging/ToolCallProcessorRegistry';
 import { IMessageService } from '../types/messaging';
-import { initializeEventHandlers } from './eventHandlers/initEventHandlers';
+import {
+  initializeEventHandlers,
+  createMessageEventHandlerRegistry
+} from './eventHandlers/initEventHandlers';
+import { getEventBusProvider } from './messaging/EventBusProvider';
 
 // 存储初始化状态
 let isInitialized = false;
@@ -51,46 +55,75 @@ export async function initializeApp(apiKey: string): Promise<void> {
     // 5. 初始化事件处理器 - 确保在创建消息服务之前初始化
     console.log('[AppInitializer] Initializing event handlers...');
 
-    // 确保事件处理器被正确初始化
     try {
-      // 先清除可能存在的全局引用
-      delete (window as any).__toolResultEventHandler;
-      delete (window as any).__toolResultEventHandlerFn;
-      delete (window as any).__toolResultEventHandlerUnsubscribe;
-      delete (window as any).__toolResultEventHandlerGlobalUnsubscribe;
+      // 获取事件总线提供者
+      const eventBusProvider = getEventBusProvider();
+      const eventBus = eventBusProvider.getEventBus();
+      console.log('[AppInitializer] Got event bus from provider');
 
-      // 初始化事件处理器
-      initializeEventHandlers(messageRepository, aiService);
+      // 创建事件处理器注册表
+      const eventHandlerRegistry = createMessageEventHandlerRegistry(
+        eventBus,
+        messageRepository,
+        aiService
+      );
+      console.log('[AppInitializer] Created event handler registry');
+
+      // 初始化所有事件处理器
+      eventHandlerRegistry.initializeAllHandlers();
+      console.log('[AppInitializer] All event handlers initialized through registry');
+
+      // 为了向后兼容，保留全局引用
+      (window as any).__eventHandlerRegistry = eventHandlerRegistry;
 
       // 检查是否成功初始化
-      setTimeout(() => {
-        const hasGlobalHandler = !!(window as any).__toolResultEventHandler;
-        console.log('[AppInitializer] Tool result event handler initialized:', hasGlobalHandler);
+      setTimeout(async () => {
+        try {
+          // 使用注册表检查是否有工具调用结果事件处理器
+          // 使用已导入的 MessageEventType
+          const { MessageEventType } = await import('../../types/messaging');
+          const handlerCount = eventHandlerRegistry.getHandlerCount(
+            MessageEventType.TOOL_RESULT_SENT
+          );
 
-        if (!hasGlobalHandler) {
-          console.error('[AppInitializer] Failed to initialize tool result event handler, retrying...');
+          console.log('[AppInitializer] Tool result event handlers count:', handlerCount);
 
-          // 重试初始化
-          import('./eventHandlers/ToolResultEventHandler').then(module => {
-            const { createToolResultEventHandler } = module;
-            const handler = createToolResultEventHandler(messageRepository, aiService);
-            console.log('[AppInitializer] Directly created tool result event handler:', !!handler);
-          }).catch(error => {
-            console.error('[AppInitializer] Failed to import ToolResultEventHandler:', error);
-          });
+          if (handlerCount <= 0) {
+            console.error('[AppInitializer] No tool result event handlers registered, retrying...');
+
+            // 重试初始化
+            eventHandlerRegistry.initializeAllHandlers();
+            console.log('[AppInitializer] Retried initializing event handlers');
+          }
+        } catch (checkError) {
+          console.error('[AppInitializer] Error checking event handlers:', checkError);
         }
       }, 500);
     } catch (error) {
       console.error('[AppInitializer] Error initializing event handlers:', error);
+
+      // 如果使用新方式失败，回退到旧方式
+      console.warn('[AppInitializer] Falling back to legacy event handler initialization');
+      try {
+        // 初始化事件处理器（旧方式）
+        initializeEventHandlers(messageRepository, aiService);
+      } catch (fallbackError) {
+        console.error('[AppInitializer] Even legacy initialization failed:', fallbackError);
+      }
     }
 
     console.log('[AppInitializer] Event handlers initialization process completed');
 
     // 6. 创建消息服务
+    // 获取事件总线实例
+    const eventBus = getEventBusProvider().getEventBus();
+
+    // 使用依赖注入创建消息服务
     messageService = createMessageService(
       messageRepository,
       threadRepository,
-      aiService
+      aiService,
+      eventBus
     );
 
     isInitialized = true;

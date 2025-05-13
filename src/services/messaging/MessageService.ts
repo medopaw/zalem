@@ -8,10 +8,12 @@ import {
   IMessageService,
   MessageEventType,
   ToolResultData,
-  ToolCallData
+  ToolCallData,
+  IMessageEventBus
 } from '../../types/messaging';
 import { IThreadRepository } from '../../repositories/IThreadRepository';
 import { getMessageEventBus } from './MessageEventBus';
+import { getEventBusProvider } from './EventBusProvider';
 import { IMessageRepository } from '../../repositories/IMessageRepository';
 import { DatabaseMessage, MessageRole } from '../../types/messageStructures';
 import { AIService, getAIService } from '../ai/AIService';
@@ -21,15 +23,29 @@ import { AIService, getAIService } from '../ai/AIService';
  * 消息服务实现
  */
 export class MessageService implements IMessageService {
-  private eventBus = getMessageEventBus();
+  private eventBus: IMessageEventBus;
   private aiService: AIService;
 
+  /**
+   * 创建消息服务实例
+   * @param messageRepository 消息存储库
+   * @param threadRepository 线程存储库
+   * @param eventBus 事件总线实例，如果不提供则使用全局实例
+   * @param aiService AI服务实例，如果不提供则使用全局实例
+   */
   constructor(
     private messageRepository: IMessageRepository,
     private threadRepository: IThreadRepository,
+    eventBus?: IMessageEventBus,
     aiService?: AIService
   ) {
+    // 使用提供的事件总线或从提供者获取
+    this.eventBus = eventBus || getEventBusProvider().getEventBus();
+
+    // 使用提供的AI服务或获取全局实例
     this.aiService = aiService || getAIService();
+
+    console.log('[MessageService] Created with event bus and AI service');
   }
 
   /**
@@ -141,48 +157,66 @@ export class MessageService implements IMessageService {
 
   /**
    * 确保工具调用结果处理器已初始化
-   * 这是一个临时解决方案，确保在发送工具调用结果时有处理器处理
+   * 使用新的依赖注入模式初始化事件处理器
    */
   private ensureToolResultHandlerInitialized(): void {
     try {
-      // 从 MessageEventBus 获取事件总线实例
-      const eventBus = this.eventBus as unknown as { listeners: Map<MessageEventType, Set<any>> };
+      // 检查事件总线是否有 TOOL_RESULT_SENT 事件的监听器
+      // 使用 MessageEventBus 的 hasListeners 方法
+      const eventBusWithMethods = this.eventBus as unknown as {
+        hasListeners(eventType: MessageEventType): boolean;
+        getRegisteredEventTypes(): MessageEventType[];
+      };
 
       // 检查是否有监听器处理 TOOL_RESULT_SENT 事件
-      const hasToolResultListener = eventBus.listeners && eventBus.listeners.has(MessageEventType.TOOL_RESULT_SENT);
+      const hasToolResultListener = typeof eventBusWithMethods.hasListeners === 'function'
+        ? eventBusWithMethods.hasListeners(MessageEventType.TOOL_RESULT_SENT)
+        : false;
+
+      // 获取所有已注册的事件类型
+      const registeredEventTypes = typeof eventBusWithMethods.getRegisteredEventTypes === 'function'
+        ? eventBusWithMethods.getRegisteredEventTypes()
+        : [];
 
       console.log('[MessageService] Checking for TOOL_RESULT_SENT listeners:', {
-        hasListeners: !!eventBus.listeners,
         hasToolResultListener,
-        registeredEventTypes: eventBus.listeners ? Array.from(eventBus.listeners.keys()) : []
+        registeredEventTypes
       });
 
       if (!hasToolResultListener) {
         console.warn('[MessageService] No listeners for TOOL_RESULT_SENT event, attempting to initialize event handlers');
 
-        // 从 initEventHandlers 导入初始化函数
+        // 使用新的依赖注入模式初始化事件处理器
         import('../eventHandlers/initEventHandlers').then(module => {
-          const { initializeEventHandlers } = module;
+          const { createMessageEventHandlerRegistry } = module;
 
           try {
-            // 直接初始化所有事件处理器
-            console.log('[MessageService] Initializing all event handlers...');
-            initializeEventHandlers(this.messageRepository, this.aiService);
-            console.log('[MessageService] Event handlers initialized');
+            // 创建事件处理器注册表
+            const eventHandlerRegistry = createMessageEventHandlerRegistry(
+              this.eventBus,
+              this.messageRepository,
+              this.aiService
+            );
+            console.log('[MessageService] Created event handler registry');
 
-            // 检查是否成功创建了事件处理器
+            // 初始化所有事件处理器
+            eventHandlerRegistry.initializeAllHandlers();
+            console.log('[MessageService] All event handlers initialized through registry');
+
+            // 为了向后兼容，保留全局引用
+            (window as any).__eventHandlerRegistry = eventHandlerRegistry;
+
+            // 检查是否成功初始化
             setTimeout(() => {
-              const hasListenerAfterInit = (this.eventBus as unknown as { listeners: Map<MessageEventType, Set<any>> })
-                .listeners.has(MessageEventType.TOOL_RESULT_SENT);
+              // 检查是否有工具调用结果事件处理器
+              const hasListenerAfterInit = typeof eventBusWithMethods.hasListeners === 'function'
+                ? eventBusWithMethods.hasListeners(MessageEventType.TOOL_RESULT_SENT)
+                : false;
 
               console.log('[MessageService] Has TOOL_RESULT_SENT listener after initialization:', hasListenerAfterInit);
 
               if (hasListenerAfterInit) {
                 console.log('[MessageService] Successfully initialized ToolResultEventHandler');
-
-                // 打印所有已注册的事件类型
-                const registeredTypes = Array.from(eventBus.listeners.keys());
-                console.log('[MessageService] All registered event types after init:', registeredTypes);
               } else {
                 console.error('[MessageService] Failed to initialize ToolResultEventHandler, still no listener for TOOL_RESULT_SENT');
 
@@ -198,6 +232,20 @@ export class MessageService implements IMessageService {
             }, 100);
           } catch (error) {
             console.error('[MessageService] Failed to initialize event handlers:', error);
+
+            // 如果使用新方式失败，回退到旧方式
+            console.warn('[MessageService] Falling back to legacy event handler initialization');
+            import('../eventHandlers/initEventHandlers').then(module => {
+              const { initializeEventHandlers } = module;
+              try {
+                initializeEventHandlers(this.messageRepository, this.aiService);
+                console.log('[MessageService] Event handlers initialized using legacy method');
+              } catch (fallbackError) {
+                console.error('[MessageService] Even legacy initialization failed:', fallbackError);
+              }
+            }).catch(importError => {
+              console.error('[MessageService] Failed to import initEventHandlers:', importError);
+            });
           }
         }).catch(error => {
           console.error('[MessageService] Failed to import initEventHandlers:', error);
@@ -365,7 +413,13 @@ export class MessageService implements IMessageService {
 export function createMessageService(
   messageRepository: IMessageRepository,
   threadRepository: IThreadRepository,
-  aiService?: AIService
+  aiService?: AIService,
+  eventBus?: IMessageEventBus
 ): IMessageService {
-  return new MessageService(messageRepository, threadRepository, aiService);
+  return new MessageService(
+    messageRepository,
+    threadRepository,
+    eventBus,
+    aiService
+  );
 }

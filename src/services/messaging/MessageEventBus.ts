@@ -19,6 +19,13 @@ export class MessageEventBus implements IMessageEventBus {
   private allListeners: Set<MessageEventListener> = new Set();
 
   /**
+   * 创建消息事件总线实例
+   */
+  constructor() {
+    console.log('[MessageEventBus] New instance created');
+  }
+
+  /**
    * 发布消息事件
    */
   publish(event: MessageEvent): void {
@@ -97,14 +104,56 @@ export class MessageEventBus implements IMessageEventBus {
       this.allListeners.delete(listener);
     };
   }
+
+  /**
+   * 获取特定类型的监听器数量
+   * 用于测试和调试
+   */
+  getListenerCount(eventType?: MessageEventType): number {
+    if (eventType) {
+      const typeListeners = this.listeners.get(eventType);
+      return typeListeners ? typeListeners.size : 0;
+    } else {
+      return this.allListeners.size;
+    }
+  }
+
+  /**
+   * 检查是否有特定类型的监听器
+   * 用于测试和调试
+   */
+  hasListeners(eventType: MessageEventType): boolean {
+    return this.listeners.has(eventType);
+  }
+
+  /**
+   * 获取所有已注册的事件类型
+   * 用于测试和调试
+   */
+  getRegisteredEventTypes(): MessageEventType[] {
+    return Array.from(this.listeners.keys());
+  }
 }
 
-// 创建单例实例
+// 创建单例实例 - 为了向后兼容
 const messageEventBus = new MessageEventBus();
 
 /**
  * 获取消息事件总线实例
+ *
+ * @deprecated 使用 EventBusProvider 替代
+ * 为了向后兼容保留此函数，新代码应该使用依赖注入或 EventBusProvider
  */
 export function getMessageEventBus(): IMessageEventBus {
-  return messageEventBus;
+  console.log('[MessageEventBus] Using deprecated getMessageEventBus() function');
+
+  // 导入 EventBusProvider
+  try {
+    // 动态导入以避免循环依赖
+    const { getEventBusProvider } = require('./EventBusProvider');
+    return getEventBusProvider().getEventBus();
+  } catch (error) {
+    console.warn('[MessageEventBus] Failed to use EventBusProvider, falling back to singleton instance:', error);
+    return messageEventBus;
+  }
 }

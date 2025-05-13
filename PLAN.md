@@ -8,10 +8,10 @@
 
 ### 1.1 引入依赖注入模式
 
-- [ ] 创建`EventBusProvider`接口和实现类，替代当前的单例模式
-- [ ] 修改`MessageEventBus`类，使其实现`IMessageEventBus`接口
-- [ ] 在应用初始化时创建`MessageEventBus`实例，并通过依赖注入传递给需要的组件
-- [ ] 移除所有对`getMessageEventBus()`的直接调用
+- [x] 创建`EventBusProvider`接口和实现类，替代当前的单例模式
+- [x] 修改`MessageEventBus`类，使其实现`IMessageEventBus`接口
+- [x] 在应用初始化时创建`MessageEventBus`实例，并通过依赖注入传递给需要的组件
+- [ ] 移除所有对`getMessageEventBus()`的直接调用（部分完成，保留了向后兼容性）
 
 ```typescript
 // 示例代码
@@ -34,10 +34,10 @@ class EventBusProvider implements IEventBusProvider {
 
 ### 1.2 简化事件处理器初始化流程
 
-- [ ] 创建`EventHandlerRegistry`类，负责管理所有事件处理器
-- [ ] 实现`registerHandler`和`getHandler`方法
-- [ ] 在应用启动时一次性注册所有事件处理器
-- [ ] 移除当前的动态导入和延迟初始化逻辑
+- [x] 创建`EventHandlerRegistry`类，负责管理所有事件处理器
+- [x] 实现`registerHandler`和`getHandlerCount`方法
+- [x] 在应用启动时一次性注册所有事件处理器
+- [ ] 移除当前的动态导入和延迟初始化逻辑（部分完成，保留了向后兼容性）
 
 ```typescript
 // 示例代码
@@ -361,13 +361,13 @@ describe('Tool Call Integration', () => {
 ## 优先级排序
 
 1. **高优先级**
-   - 引入依赖注入模式
+   - ✅ 引入依赖注入模式
    - 实现统一的错误报告机制，在UI界面显示错误
    - 统一消息类型和转换逻辑
    - 为关键组件添加单元测试
 
 2. **中优先级**
-   - 简化事件处理器初始化流程
+   - ✅ 简化事件处理器初始化流程
    - 增强消息验证和错误处理
    - 实现集成测试
 
