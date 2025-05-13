@@ -96,7 +96,22 @@ export class MessageService implements IMessageService {
     userId: string
   ): Promise<string> {
     try {
+      // 确保工具调用结果处理器已初始化
+      this.ensureToolResultHandlerInitialized();
+
       // 发布工具调用结果事件，让 ToolResultEventHandler 处理
+      console.log('[MessageService] Publishing tool result event:', toolResult);
+
+      // 创建工具调用结果内容（仅用于日志）
+      const toolResultContent = {
+        type: 'tool_result',
+        tool_call_id: toolResult.toolCallId,
+        status: toolResult.status,
+        message: toolResult.message
+      };
+      console.log('[MessageService] Tool result content:', toolResultContent);
+
+      // 发布事件
       this.eventBus.publish({
         type: MessageEventType.TOOL_RESULT_SENT,
         data: {
@@ -125,6 +140,77 @@ export class MessageService implements IMessageService {
   }
 
   /**
+   * 确保工具调用结果处理器已初始化
+   * 这是一个临时解决方案，确保在发送工具调用结果时有处理器处理
+   */
+  private ensureToolResultHandlerInitialized(): void {
+    try {
+      // 从 MessageEventBus 获取事件总线实例
+      const eventBus = this.eventBus as unknown as { listeners: Map<MessageEventType, Set<any>> };
+
+      // 检查是否有监听器处理 TOOL_RESULT_SENT 事件
+      const hasToolResultListener = eventBus.listeners && eventBus.listeners.has(MessageEventType.TOOL_RESULT_SENT);
+
+      console.log('[MessageService] Checking for TOOL_RESULT_SENT listeners:', {
+        hasListeners: !!eventBus.listeners,
+        hasToolResultListener,
+        registeredEventTypes: eventBus.listeners ? Array.from(eventBus.listeners.keys()) : []
+      });
+
+      if (!hasToolResultListener) {
+        console.warn('[MessageService] No listeners for TOOL_RESULT_SENT event, attempting to initialize event handlers');
+
+        // 从 initEventHandlers 导入初始化函数
+        import('../eventHandlers/initEventHandlers').then(module => {
+          const { initializeEventHandlers } = module;
+
+          try {
+            // 直接初始化所有事件处理器
+            console.log('[MessageService] Initializing all event handlers...');
+            initializeEventHandlers(this.messageRepository, this.aiService);
+            console.log('[MessageService] Event handlers initialized');
+
+            // 检查是否成功创建了事件处理器
+            setTimeout(() => {
+              const hasListenerAfterInit = (this.eventBus as unknown as { listeners: Map<MessageEventType, Set<any>> })
+                .listeners.has(MessageEventType.TOOL_RESULT_SENT);
+
+              console.log('[MessageService] Has TOOL_RESULT_SENT listener after initialization:', hasListenerAfterInit);
+
+              if (hasListenerAfterInit) {
+                console.log('[MessageService] Successfully initialized ToolResultEventHandler');
+
+                // 打印所有已注册的事件类型
+                const registeredTypes = Array.from(eventBus.listeners.keys());
+                console.log('[MessageService] All registered event types after init:', registeredTypes);
+              } else {
+                console.error('[MessageService] Failed to initialize ToolResultEventHandler, still no listener for TOOL_RESULT_SENT');
+
+                // 尝试单独创建工具调用结果事件处理器
+                import('../eventHandlers/ToolResultEventHandler').then(module => {
+                  const { createToolResultEventHandler } = module;
+                  const toolResultHandler = createToolResultEventHandler(this.messageRepository, this.aiService);
+                  console.log('[MessageService] Directly created ToolResultEventHandler:', !!toolResultHandler);
+                }).catch(error => {
+                  console.error('[MessageService] Failed to directly create ToolResultEventHandler:', error);
+                });
+              }
+            }, 100);
+          } catch (error) {
+            console.error('[MessageService] Failed to initialize event handlers:', error);
+          }
+        }).catch(error => {
+          console.error('[MessageService] Failed to import initEventHandlers:', error);
+        });
+      } else {
+        console.log('[MessageService] ToolResultEventHandler already initialized');
+      }
+    } catch (error) {
+      console.error('[MessageService] Error in ensureToolResultHandlerInitialized:', error);
+    }
+  }
+
+  /**
    * 获取线程的消息
    */
   async getMessages(
@@ -149,7 +235,11 @@ export class MessageService implements IMessageService {
    * 获取用户的所有线程
    */
   async getThreads(): Promise<{ threads: any[], error: string | null }> {
-    return this.threadRepository.getThreads();
+    const result = await this.threadRepository.getThreads();
+    return {
+      threads: result.threads || [],
+      error: result.error
+    };
   }
 
   /**

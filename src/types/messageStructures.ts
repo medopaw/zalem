@@ -325,6 +325,14 @@ export function toDisplayMessage(dbMessage: DatabaseMessage | ChatMessage): Disp
  * 从数据库消息创建LLM历史消息
  */
 export function toLLMHistoryMessage(dbMessage: DatabaseMessage): LLMHistoryMessage {
+  console.log('Converting DB message to LLM history message:', {
+    id: dbMessage.id,
+    role: dbMessage.role,
+    tool_call_id: dbMessage.tool_call_id,
+    content_preview: dbMessage.content.substring(0, 100) + (dbMessage.content.length > 100 ? '...' : ''),
+    send_to_llm: dbMessage.send_to_llm
+  });
+
   // 基本消息结构
   const llmMessage: LLMHistoryMessage = {
     role: dbMessage.role,
@@ -334,30 +342,105 @@ export function toLLMHistoryMessage(dbMessage: DatabaseMessage): LLMHistoryMessa
   // 如果是tool角色，添加tool_call_id
   if (dbMessage.role === 'tool' && dbMessage.tool_call_id) {
     llmMessage.tool_call_id = dbMessage.tool_call_id;
+    console.log('Added tool_call_id to LLM message:', dbMessage.tool_call_id);
   }
 
-  // 尝试解析内容，检查是否包含工具调用
-  try {
-    const parsedContent = JSON.parse(dbMessage.content);
+  // 特殊处理工具调用结果消息
+  if (dbMessage.role === 'tool' && dbMessage.tool_call_id) {
+    // 对于工具角色的消息，尝试解析内容
+    console.log('Processing tool message with tool_call_id:', dbMessage.tool_call_id);
+    console.log('Tool message content:', dbMessage.content);
 
-    // 使用isToolCallsContent类型守卫函数验证
-    if (dbMessage.role === 'assistant' && isToolCallsContent(parsedContent)) {
-      // 将内容设为null，添加tool_calls
-      llmMessage.content = null;
-      llmMessage.tool_calls = parsedContent.calls.map((call) => ({
-        id: call.id || `call_${Math.random().toString(36).substring(2)}`,
-        type: 'function',
-        function: {
-          name: call.name,
-          arguments: JSON.stringify(call.parameters)
-        }
-      }));
+    try {
+      // 尝试解析JSON内容
+      let parsedContent: any;
+
+      try {
+        parsedContent = JSON.parse(dbMessage.content);
+        console.log('Successfully parsed tool message content as JSON:', parsedContent);
+      } catch (parseError) {
+        console.log('Content is not valid JSON, using as plain text');
+
+        // 如果不是JSON，直接使用原始内容
+        return {
+          role: 'tool',
+          content: dbMessage.content,
+          tool_call_id: dbMessage.tool_call_id
+        };
+      }
+
+      // 如果是工具调用结果类型，使用message字段作为content
+      if (parsedContent && parsedContent.type === 'tool_result' && parsedContent.message) {
+        console.log('Found tool_result message with message:', parsedContent.message);
+
+        // 设置新内容
+        llmMessage.content = parsedContent.message;
+
+        console.log('Final tool result message for LLM:', llmMessage);
+
+        // 确保返回正确的格式
+        return {
+          role: 'tool',
+          content: parsedContent.message,
+          tool_call_id: dbMessage.tool_call_id
+        };
+      } else {
+        console.log('Tool message is not a tool_result or missing message field');
+
+        // 如果不是工具调用结果类型，使用原始内容
+        return {
+          role: 'tool',
+          content: dbMessage.content,
+          tool_call_id: dbMessage.tool_call_id
+        };
+      }
+    } catch (error) {
+      // 如果解析失败，保持原始内容
+      console.error('Error in toLLMHistoryMessage:', error);
+      console.error('Using original content as fallback');
+
+      return {
+        role: 'tool',
+        content: dbMessage.content,
+        tool_call_id: dbMessage.tool_call_id
+      };
     }
-  } catch (error) {
-    // 如果解析失败，保持原始内容
-    console.log('Failed to parse JSON in toLLMHistoryMessage:', error);
+  }
+  // 处理助手消息中的工具调用
+  else if (dbMessage.role === 'assistant') {
+    try {
+      const parsedContent = JSON.parse(dbMessage.content);
+
+      // 使用isToolCallsContent类型守卫函数验证
+      if (isToolCallsContent(parsedContent)) {
+        console.log('Found tool_calls message:', parsedContent);
+
+        // 将内容设为null，添加tool_calls
+        llmMessage.content = null;
+        llmMessage.tool_calls = parsedContent.calls.map((call) => ({
+          id: call.id || `call_${Math.random().toString(36).substring(2)}`,
+          type: 'function',
+          function: {
+            name: call.name,
+            arguments: JSON.stringify(call.parameters)
+          }
+        }));
+        console.log('Converted tool calls message for LLM:', llmMessage);
+
+        // 确保返回正确的格式
+        return {
+          role: 'assistant',
+          content: null,
+          tool_calls: llmMessage.tool_calls
+        };
+      }
+    } catch (error) {
+      // 如果解析失败，保持原始内容
+      console.log('Failed to parse assistant JSON in toLLMHistoryMessage:', error);
+    }
   }
 
+  // 如果没有特殊处理，返回基本消息结构
   return llmMessage;
 }
 

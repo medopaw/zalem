@@ -198,6 +198,34 @@ export class NicknameHandler extends BaseHandler {
 
     console.log('Saved tool result message:', savedResultMessage);
 
+    // 发布工具调用结果事件，确保ToolResultEventHandler能处理它
+    try {
+      const { getMessageEventBus } = await import('../messaging/MessageEventBus');
+      const { MessageEventType } = await import('../../types/messaging');
+
+      const eventBus = getMessageEventBus();
+      console.log('[NicknameHandler] Publishing tool result event for tool call ID:', toolCallId);
+
+      eventBus.publish({
+        type: MessageEventType.TOOL_RESULT_SENT,
+        data: {
+          threadId: context.threadId,
+          userId: context.userId,
+          toolResult: {
+            toolCallId: toolCallId,
+            status: 'success',
+            result: { nickname: params.nickname },
+            message: `昵称已设置为 ${params.nickname}`
+          },
+          messageId: savedResultMessage.id
+        }
+      });
+
+      console.log('[NicknameHandler] Tool result event published successfully');
+    } catch (error) {
+      console.error('[NicknameHandler] Failed to publish tool result event:', error);
+    }
+
     messages.push(savedResultMessage);
   }
 
@@ -268,6 +296,34 @@ export class NicknameHandler extends BaseHandler {
     }
 
     console.log('Saved clear nickname tool result message:', savedResultMessage);
+
+    // 发布工具调用结果事件，确保ToolResultEventHandler能处理它
+    try {
+      const { getMessageEventBus } = await import('../messaging/MessageEventBus');
+      const { MessageEventType } = await import('../../types/messaging');
+
+      const eventBus = getMessageEventBus();
+      console.log('[NicknameHandler] Publishing clear nickname tool result event for tool call ID:', toolCallId);
+
+      eventBus.publish({
+        type: MessageEventType.TOOL_RESULT_SENT,
+        data: {
+          threadId: context.threadId,
+          userId: context.userId,
+          toolResult: {
+            toolCallId: toolCallId,
+            status: 'success',
+            result: { nickname: null },
+            message: '昵称已清除'
+          },
+          messageId: savedResultMessage.id
+        }
+      });
+
+      console.log('[NicknameHandler] Clear nickname tool result event published successfully');
+    } catch (error) {
+      console.error('[NicknameHandler] Failed to publish clear nickname tool result event:', error);
+    }
 
     messages.push(savedResultMessage);
   }

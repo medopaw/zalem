@@ -46,20 +46,54 @@ export function initializeMessageHandlers(): void {
   );
   registry.registerProcessor(nicknameProcessor);
 
-  // 检查 AI 服务是否已初始化
-  try {
-    // 尝试获取 AI 服务
-    const aiService = getAIService();
+  // 直接从 ToolResultEventHandler 导入创建函数
+  const { createToolResultEventHandler } = require('../services/eventHandlers/ToolResultEventHandler');
+  const { createToolCallEventHandler } = require('../services/eventHandlers/ToolCallEventHandler');
+  const { MessageEventType } = require('../types/messaging');
+  const { getMessageEventBus } = require('../services/messaging/MessageEventBus');
 
-    // 如果成功获取，初始化事件处理器
-    initializeEventHandlers(messageRepository, aiService);
-    console.log('[MessageHandlers] All message handlers initialized with AI service');
-  } catch (error) {
-    // AI 服务未初始化，记录日志但不抛出错误
-    console.log('[MessageHandlers] AI service not initialized yet, event handlers will be initialized later');
+  // 设置一个强制初始化函数，确保事件处理器被初始化
+  const forceInitializeEventHandlers = () => {
+    try {
+      // 尝试获取 AI 服务
+      const aiService = getAIService();
 
-    // 我们可以在这里设置一个监听器，当 AI 服务初始化后再初始化事件处理器
-    // 或者在应用的其他地方确保正确的初始化顺序
+      // 直接创建事件处理器实例，而不是通过 initializeEventHandlers
+      console.log('[MessageHandlers] Directly creating event handlers...');
+
+      // 创建工具调用事件处理器
+      const toolCallHandler = createToolCallEventHandler(messageRepository);
+      console.log('[MessageHandlers] ToolCallEventHandler created:', !!toolCallHandler);
+
+      // 创建工具调用结果事件处理器
+      const toolResultHandler = createToolResultEventHandler(messageRepository, aiService);
+      console.log('[MessageHandlers] ToolResultEventHandler created:', !!toolResultHandler);
+
+      // 检查事件总线中是否有 TOOL_RESULT_SENT 事件的监听器
+      const eventBus = getMessageEventBus();
+      const hasToolResultListener = eventBus.listeners.has(MessageEventType.TOOL_RESULT_SENT);
+      console.log('[MessageHandlers] Has TOOL_RESULT_SENT listener:', hasToolResultListener);
+
+      return true;
+    } catch (error) {
+      console.error('[MessageHandlers] Error in forceInitializeEventHandlers:', error);
+      return false;
+    }
+  };
+
+  // 尝试初始化事件处理器
+  const success = forceInitializeEventHandlers();
+
+  if (success) {
+    console.log('[MessageHandlers] Event handlers initialized successfully');
+  } else {
+    console.log('[MessageHandlers] Failed to initialize event handlers, will retry in 2 seconds');
+
+    // 设置定时器，2秒后重试初始化事件处理器
+    setTimeout(() => {
+      const retrySuccess = forceInitializeEventHandlers();
+      console.log('[MessageHandlers] Retry initialization result:', retrySuccess);
+    }, 2000);
   }
 
   // 标记为已初始化
