@@ -203,10 +203,16 @@ class MessageSender {
 
 ### 2.3 增强消息验证和错误反馈
 
-- [ ] 实现消息验证器，确保消息格式正确
-- [ ] 添加详细的日志记录，包括消息ID、类型、内容摘要等
-- [ ] 实现消息处理错误的UI反馈机制，直接向用户展示错误信息
-- [ ] 添加消息处理异常监控，记录错误类型和频率
+- [x] 实现消息验证器，确保消息格式正确
+- [x] 添加详细的日志记录，包括消息ID、类型、内容摘要等
+- [x] 实现消息处理错误的UI反馈机制，直接向用户展示错误信息
+- [x] 添加消息处理异常监控，记录错误类型和频率
+
+已完成以下实现：
+- `src/services/validation/MessageValidator.ts` - 消息验证器
+- `src/services/validation/MessageValidatorProvider.ts` - 消息验证器提供者
+- `src/services/logging/MessageLogger.ts` - 消息日志记录器
+- `src/services/validation/MessageValidationEnhancer.ts` - 消息验证增强器
 
 ```typescript
 // 示例代码
@@ -376,7 +382,7 @@ describe('Tool Call Integration', () => {
 
 2. **中优先级**
    - ✅ 简化事件处理器初始化流程
-   - 增强消息验证和错误处理
+   - ✅ 增强消息验证和错误处理
    - 实现集成测试
 
 3. **低优先级**
